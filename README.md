@@ -9,7 +9,7 @@ A lightweight, GDPR-compliant cookie consent dialog built with vanilla HTML, CSS
 - Customizable settings panel with toggle switches
 - Fully customizable text content (headings, descriptions, buttons)
 - localStorage persistence across sessions
-- Accessible (ARIA attributes, keyboard navigation, focus management)
+- Accessible (WCAG 2.1 AA compliant - see Accessibility section)
 - Responsive design for mobile devices
 - Callback hooks for integration with your application
 
@@ -221,6 +221,44 @@ console.log(debugState);
 //   debugEnabled: true
 // }
 ```
+
+## Accessibility
+
+This component is built with WCAG 2.1 AA compliance in mind.
+
+### Keyboard Navigation
+
+| Key | Action |
+|-----|--------|
+| `Tab` | Move focus to next interactive element |
+| `Shift+Tab` | Move focus to previous interactive element |
+| `Enter/Space` | Activate buttons and toggles |
+| `Escape` | Close modal and reject non-essential cookies |
+
+### Focus Management
+
+- **Focus Trap**: When the modal is open, Tab/Shift+Tab cycles only through elements within the modal
+- **Focus Restoration**: When the modal closes, focus returns to the element that triggered it
+- **Initial Focus**: Focus is automatically set to the first interactive element when the modal opens
+
+### Screen Reader Support
+
+- Modal has `role="dialog"`, `aria-modal="true"`, and `aria-labelledby` attributes
+- Toggle switches have `role="switch"` and `aria-checked` attributes that update dynamically
+- ARIA live region announces preference changes (e.g., "Cookie preferences saved")
+- Descriptive labels on all interactive elements
+
+### High Contrast Mode
+
+The component supports Windows High Contrast Mode and other forced-colors environments:
+
+- All borders use system color keywords (`CanvasText`, `ButtonText`)
+- Toggle states are distinguishable in high contrast
+- Links use `LinkText` color
+
+### Reduced Motion
+
+Animations are disabled when `prefers-reduced-motion: reduce` is set in the user's system preferences.
 
 ## Browser Support
 

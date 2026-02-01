@@ -59,6 +59,10 @@ class CookieConsent {
       analytics: false,
       marketing: false
     };
+
+    // Focus management
+    this.triggerElement = null;
+    this.liveRegion = null;
   }
 
   /**
@@ -234,6 +238,36 @@ class CookieConsent {
   }
 
   /**
+   * Get all focusable elements within the modal (visible and enabled only)
+   * @returns {Array} Array of visible, enabled focusable elements
+   */
+  _getFocusableElements() {
+    const elements = this.modal.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    // Filter to only visible, enabled elements (not in hidden views, not disabled)
+    return Array.from(elements).filter(el => {
+      const isVisible = el.offsetParent !== null || el.closest('.cc-active');
+      const isEnabled = !el.disabled;
+      return isVisible && isEnabled;
+    });
+  }
+
+  /**
+   * Announce a message to screen readers via ARIA live region
+   * @param {string} message - The message to announce
+   */
+  _announce(message) {
+    if (this.liveRegion) {
+      // Clear first to ensure re-announcement of identical messages
+      this.liveRegion.textContent = '';
+      requestAnimationFrame(() => {
+        this.liveRegion.textContent = message;
+      });
+    }
+  }
+
+  /**
    * Initialize the cookie consent dialog
    * Shows the dialog if no consent has been given
    */
@@ -327,6 +361,8 @@ class CookieConsent {
       className: 'cc-toggle-input',
       id: id
     });
+    input.setAttribute('role', 'switch');
+    input.setAttribute('aria-checked', isRequired ? 'true' : 'false');
     if (isRequired) {
       input.checked = true;
       input.disabled = true;
@@ -524,6 +560,14 @@ class CookieConsent {
     document.body.appendChild(this.overlay);
     document.body.appendChild(this.modal);
 
+    // Create ARIA live region for screen reader announcements
+    this.liveRegion = this._createElement('div', {
+      className: 'cc-sr-only',
+      'aria-live': 'polite',
+      'aria-atomic': 'true'
+    });
+    document.body.appendChild(this.liveRegion);
+
     // Bind events
     this._bindEvents();
   }
@@ -560,6 +604,9 @@ class CookieConsent {
         const isChecked = e.target.checked;
         this.categories[category] = isChecked;
 
+        // Update aria-checked for screen readers
+        e.target.setAttribute('aria-checked', isChecked ? 'true' : 'false');
+
         // Update status text
         const statusEl = this.modal.querySelector(`[data-status="${category}"]`);
         if (statusEl) {
@@ -570,9 +617,26 @@ class CookieConsent {
 
     // Keyboard navigation
     this.modal.addEventListener('keydown', (e) => {
+      // ESC closes modal and rejects non-essential cookies
       if (e.key === 'Escape') {
-        // Don't allow escape to close - user must make a choice
         e.preventDefault();
+        this.rejectAll();
+        return;
+      }
+
+      // Focus trap: cycle through focusable elements
+      if (e.key === 'Tab') {
+        const focusable = this._getFocusableElements();
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     });
   }
@@ -777,6 +841,9 @@ class CookieConsent {
    * Show the cookie consent modal
    */
   show() {
+    // Store the currently focused element for restoration on close
+    this.triggerElement = document.activeElement;
+
     this.overlay.classList.add('cc-visible');
     this.modal.classList.add('cc-visible');
 
@@ -799,6 +866,11 @@ class CookieConsent {
 
     // Restore body scroll
     document.body.style.overflow = '';
+
+    // Restore focus to the element that triggered the modal
+    if (this.triggerElement && typeof this.triggerElement.focus === 'function') {
+      this.triggerElement.focus();
+    }
   }
 
   /**
@@ -834,6 +906,7 @@ class CookieConsent {
 
       if (input && !input.disabled) {
         input.checked = this.categories[category];
+        input.setAttribute('aria-checked', this.categories[category] ? 'true' : 'false');
       }
       if (statusEl) {
         statusEl.textContent = this.categories[category] ? 'On' : 'Off';
@@ -855,6 +928,7 @@ class CookieConsent {
     this._saveToStorage();
     this._evaluateScripts();
     this._updateDebugBadge();
+    this._announce('Cookie preferences saved. All cookies accepted.');
     this.hide();
 
     if (this.onAccept) {
@@ -876,6 +950,7 @@ class CookieConsent {
     this._saveToStorage();
     this._evaluateScripts();
     this._updateDebugBadge();
+    this._announce('Cookie preferences saved. Non-essential cookies rejected.');
     this.hide();
 
     if (this.onReject) {
@@ -897,6 +972,7 @@ class CookieConsent {
     this._saveToStorage();
     this._evaluateScripts();
     this._updateDebugBadge();
+    this._announce('Cookie preferences saved.');
     this.hide();
 
     if (this.onSave) {

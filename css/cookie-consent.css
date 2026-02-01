@@ -327,6 +327,74 @@
 }
 
 /* ============================================
+   Accessibility: Screen Reader Only
+   ============================================ */
+.cc-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ============================================
+   Accessibility: High Contrast Mode Support
+   ============================================ */
+@media (forced-colors: active) {
+  .cc-modal {
+    border: 2px solid CanvasText;
+  }
+
+  .cc-btn {
+    border: 2px solid ButtonText;
+  }
+
+  .cc-btn-primary {
+    background-color: ButtonFace;
+    color: ButtonText;
+    border: 2px solid ButtonText;
+  }
+
+  .cc-btn-primary:hover {
+    background-color: Highlight;
+    color: HighlightText;
+  }
+
+  .cc-category {
+    border: 1px solid CanvasText;
+  }
+
+  .cc-toggle-slider {
+    border: 2px solid CanvasText;
+  }
+
+  .cc-toggle-slider::before {
+    background-color: CanvasText;
+  }
+
+  .cc-toggle-input:checked + .cc-toggle-slider {
+    background-color: Highlight;
+    border-color: Highlight;
+  }
+
+  .cc-toggle-input:checked + .cc-toggle-slider::before {
+    background-color: HighlightText;
+  }
+
+  .cc-toggle-input:disabled + .cc-toggle-slider {
+    border-color: GrayText;
+  }
+
+  .cc-description a {
+    color: LinkText;
+  }
+}
+
+/* ============================================
    Debug Mode Styles
    ============================================ */
 .cc-debug-badge {
