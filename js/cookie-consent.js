@@ -11,6 +11,38 @@ class CookieConsent {
     this.onReject = options.onReject || null;
     this.onSave = options.onSave || null;
 
+    // Default content for all text in the modal
+    const defaultContent = {
+      initialView: {
+        heading: 'Cookie settings',
+        description: {
+          text: 'We use cookies to enhance your browsing experience, serve personalized content, and analyze our traffic. Read our ',
+          linkText: 'Cookie Policy',
+          suffix: ' to learn more.'
+        },
+        buttons: {
+          customize: 'Customize Cookie Settings',
+          rejectAll: 'Reject All Cookies',
+          acceptAll: 'Accept All Cookies'
+        }
+      },
+      settingsView: {
+        heading: 'Cookie settings',
+        description: 'Manage your cookie preferences below. Necessary cookies are required for the website to function and cannot be disabled.',
+        buttons: {
+          save: 'Save Preferences'
+        }
+      },
+      categories: {
+        necessary: 'Enables security and basic functionality.',
+        analytics: 'Enables tracking of site performance.',
+        marketing: 'Enables ads personalization and tracking.'
+      }
+    };
+
+    // Deep merge user content with defaults
+    this.content = this._mergeDeep(defaultContent, options.content || {});
+
     this.modal = null;
     this.overlay = null;
     this.initialView = null;
@@ -22,6 +54,33 @@ class CookieConsent {
       analytics: false,
       marketing: false
     };
+  }
+
+  /**
+   * Deep merge two objects
+   * @param {Object} target - The target object
+   * @param {Object} source - The source object to merge
+   * @returns {Object} The merged object
+   */
+  _mergeDeep(target, source) {
+    const result = { ...target };
+
+    for (const key of Object.keys(source)) {
+      if (
+        source[key] !== null &&
+        typeof source[key] === 'object' &&
+        !Array.isArray(source[key]) &&
+        target[key] !== null &&
+        typeof target[key] === 'object' &&
+        !Array.isArray(target[key])
+      ) {
+        result[key] = this._mergeDeep(target[key], source[key]);
+      } else {
+        result[key] = source[key];
+      }
+    }
+
+    return result;
   }
 
   /**
@@ -163,30 +222,30 @@ class CookieConsent {
     const heading = this._createElement('h2', {
       className: 'cc-heading',
       id: 'cc-heading',
-      textContent: 'Cookie settings'
+      textContent: this.content.initialView.heading
     });
 
     // Description with link
     const description = this._createElement('p', { className: 'cc-description' });
     description.appendChild(document.createTextNode(
-      'We use cookies to enhance your browsing experience, serve personalized content, and analyze our traffic. Read our '
+      this.content.initialView.description.text
     ));
 
     const link = this._createElement('a', {
       href: this.policyUrl,
       target: '_blank',
       rel: 'noopener noreferrer',
-      textContent: 'Cookie Policy'
+      textContent: this.content.initialView.description.linkText
     });
     description.appendChild(link);
-    description.appendChild(document.createTextNode(' to learn more.'));
+    description.appendChild(document.createTextNode(this.content.initialView.description.suffix));
 
     // Buttons container
     const buttons = this._createElement('div', { className: 'cc-buttons' });
 
     // Customize button
     buttons.appendChild(this._createButton(
-      'Customize Cookie Settings',
+      this.content.initialView.buttons.customize,
       'customize',
       'cc-btn-outline cc-btn-full'
     ));
@@ -194,12 +253,12 @@ class CookieConsent {
     // Button row
     const buttonRow = this._createElement('div', { className: 'cc-buttons-row' });
     buttonRow.appendChild(this._createButton(
-      'Reject All Cookies',
+      this.content.initialView.buttons.rejectAll,
       'reject',
       'cc-btn-outline'
     ));
     buttonRow.appendChild(this._createButton(
-      'Accept All Cookies',
+      this.content.initialView.buttons.acceptAll,
       'accept',
       'cc-btn-primary'
     ));
@@ -222,34 +281,34 @@ class CookieConsent {
     // Heading
     view.appendChild(this._createElement('h2', {
       className: 'cc-heading',
-      textContent: 'Cookie settings'
+      textContent: this.content.settingsView.heading
     }));
 
     // Description
     view.appendChild(this._createElement('p', {
       className: 'cc-description',
-      textContent: 'Manage your cookie preferences below. Necessary cookies are required for the website to function and cannot be disabled.'
+      textContent: this.content.settingsView.description
     }));
 
     // Categories
     const categories = this._createElement('div', { className: 'cc-categories' });
     categories.appendChild(this._createCategoryCard(
       'Necessary',
-      'Enables security and basic functionality.',
+      this.content.categories.necessary,
       'cc-necessary',
       'necessary',
       true
     ));
     categories.appendChild(this._createCategoryCard(
       'Analytics',
-      'Enables tracking of site performance.',
+      this.content.categories.analytics,
       'cc-analytics',
       'analytics',
       false
     ));
     categories.appendChild(this._createCategoryCard(
       'Marketing',
-      'Enables ads personalization and tracking.',
+      this.content.categories.marketing,
       'cc-marketing',
       'marketing',
       false
@@ -258,7 +317,7 @@ class CookieConsent {
 
     // Save button
     view.appendChild(this._createButton(
-      'Save Preferences',
+      this.content.settingsView.buttons.save,
       'save',
       'cc-btn-primary cc-btn-full'
     ));
