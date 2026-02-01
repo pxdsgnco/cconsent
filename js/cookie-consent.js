@@ -16,6 +16,20 @@ class CookieConsent {
     this.managedScripts = []; // Track scripts with data-cookie-category
     this.debugBadge = null;
 
+    // Storage configuration
+    this.storageMethod = options.storageMethod || 'localStorage';
+    this.cookieOptions = this._mergeDeep({
+      sameSite: 'Strict',
+      secure: true,
+      httpOnly: false, // Note: Cannot be set via JavaScript
+      domain: null,
+      path: '/',
+      expires: 365 // Days
+    }, options.cookieOptions || {});
+    this.encryption = options.encryption || false;
+    this.generateConsentId = options.generateConsentId || false;
+    this.consentId = null;
+
     // Default content for all text in the modal
     const defaultContent = {
       initialView: {
@@ -90,6 +104,157 @@ class CookieConsent {
     }
 
     return result;
+  }
+
+  /**
+   * Generate a UUID v4 for consent tracking
+   * @returns {string} UUID v4 string
+   */
+  _generateConsentId() {
+    // Use crypto.randomUUID if available, otherwise fallback
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+    // Fallback for older browsers
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+
+  /**
+   * Encode data for storage (Base64 encoding when encryption is enabled)
+   * @param {Object} data - Data to encode
+   * @returns {string} Encoded string
+   */
+  _encodeData(data) {
+    const jsonString = JSON.stringify(data);
+    if (this.encryption) {
+      // Use Base64 encoding for light obfuscation
+      try {
+        return btoa(unescape(encodeURIComponent(jsonString)));
+      } catch (e) {
+        this._log('Failed to encode data', e, 'error');
+        return jsonString;
+      }
+    }
+    return jsonString;
+  }
+
+  /**
+   * Decode data from storage (with backward compatibility)
+   * @param {string} encodedData - Encoded string
+   * @returns {Object|null} Decoded data or null on failure
+   */
+  _decodeData(encodedData) {
+    if (!encodedData) return null;
+
+    // Try to parse as JSON first (backward compatibility with unencoded data)
+    try {
+      return JSON.parse(encodedData);
+    } catch (e) {
+      // Not plain JSON, try Base64 decoding
+    }
+
+    // Try Base64 decoding
+    try {
+      const decoded = decodeURIComponent(escape(atob(encodedData)));
+      return JSON.parse(decoded);
+    } catch (e) {
+      this._log('Failed to decode data', e, 'error');
+      return null;
+    }
+  }
+
+  /**
+   * Set a cookie with specified options
+   * @param {string} name - Cookie name
+   * @param {string} value - Cookie value
+   * @param {Object} options - Cookie options
+   */
+  _setCookie(name, value, options = {}) {
+    const opts = { ...this.cookieOptions, ...options };
+    let cookieString = `${encodeURIComponent(name)}=${encodeURIComponent(value)}`;
+
+    if (opts.expires) {
+      const date = new Date();
+      date.setTime(date.getTime() + (opts.expires * 24 * 60 * 60 * 1000));
+      cookieString += `; expires=${date.toUTCString()}`;
+    }
+
+    if (opts.path) {
+      cookieString += `; path=${opts.path}`;
+    }
+
+    if (opts.domain) {
+      cookieString += `; domain=${opts.domain}`;
+    }
+
+    if (opts.sameSite) {
+      cookieString += `; SameSite=${opts.sameSite}`;
+    }
+
+    if (opts.secure) {
+      cookieString += '; Secure';
+    }
+
+    document.cookie = cookieString;
+    this._log(`Cookie set: ${name}`, { value: value.substring(0, 50) + '...' });
+  }
+
+  /**
+   * Get a cookie value by name
+   * @param {string} name - Cookie name
+   * @returns {string|null} Cookie value or null if not found
+   */
+  _getCookie(name) {
+    const cookies = document.cookie.split(';');
+    const encodedName = encodeURIComponent(name);
+
+    for (const cookie of cookies) {
+      const [cookieName, ...cookieValueParts] = cookie.trim().split('=');
+      if (cookieName === encodedName) {
+        return decodeURIComponent(cookieValueParts.join('='));
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Delete a cookie
+   * @param {string} name - Cookie name
+   * @param {Object} options - Cookie options (path, domain)
+   */
+  _deleteCookie(name, options = {}) {
+    const opts = { ...this.cookieOptions, ...options, expires: -1 };
+    this._setCookie(name, '', opts);
+    this._log(`Cookie deleted: ${name}`);
+  }
+
+  /**
+   * Migrate consent from localStorage to cookies (or vice versa)
+   */
+  _migrateStorage() {
+    if (this.storageMethod === 'cookie') {
+      // Check if there's existing localStorage data to migrate
+      try {
+        const localData = localStorage.getItem(this.storageKey);
+        if (localData && !this._getCookie(this.storageKey)) {
+          this._log('Migrating consent from localStorage to cookies');
+          const consent = this._decodeData(localData);
+          if (consent) {
+            // Save to cookie
+            this._setCookie(this.storageKey, this._encodeData(consent));
+            // Remove from localStorage
+            localStorage.removeItem(this.storageKey);
+            this._log('Migration complete', null, 'success');
+          }
+        }
+      } catch (e) {
+        this._log('Migration failed', e, 'error');
+      }
+    }
   }
 
   /**
@@ -233,6 +398,9 @@ class CookieConsent {
       })),
       timestamp: new Date().toISOString(),
       storageKey: this.storageKey,
+      storageMethod: this.storageMethod,
+      encryption: this.encryption,
+      consentId: this.consentId,
       debugEnabled: this.debug
     };
   }
@@ -273,6 +441,10 @@ class CookieConsent {
    */
   init() {
     this._log('Initializing cookie consent...');
+    this._log('Storage method: ' + this.storageMethod);
+
+    // Migrate storage if needed (localStorage -> cookies)
+    this._migrateStorage();
 
     // Scan for scripts with data-cookie-category
     this._scanScripts();
@@ -612,6 +784,15 @@ class CookieConsent {
         if (statusEl) {
           statusEl.textContent = isChecked ? 'On' : 'Off';
         }
+
+        // Add bounce animation to the slider
+        const slider = e.target.nextElementSibling;
+        if (slider && slider.classList.contains('cc-toggle-slider')) {
+          slider.classList.add('cc-toggle-animating');
+          slider.addEventListener('animationend', () => {
+            slider.classList.remove('cc-toggle-animating');
+          }, { once: true });
+        }
       });
     });
 
@@ -878,14 +1059,20 @@ class CookieConsent {
    */
   showSettings() {
     this.initialView.classList.remove('cc-active');
-    this.settingsView.classList.add('cc-active');
 
-    // Sync toggle states with current categories
-    this._syncToggles();
+    // Use requestAnimationFrame for smooth transition sequencing
+    requestAnimationFrame(() => {
+      this.settingsView.classList.add('cc-active');
 
-    // Focus the first toggle
-    const firstToggle = this.settingsView.querySelector('.cc-toggle-input:not(:disabled)');
-    if (firstToggle) firstToggle.focus();
+      // Sync toggle states with current categories
+      this._syncToggles();
+
+      // Focus the first toggle after transition starts
+      requestAnimationFrame(() => {
+        const firstToggle = this.settingsView.querySelector('.cc-toggle-input:not(:disabled)');
+        if (firstToggle) firstToggle.focus();
+      });
+    });
   }
 
   /**
@@ -893,7 +1080,10 @@ class CookieConsent {
    */
   showInitial() {
     this.settingsView.classList.remove('cc-active');
-    this.initialView.classList.add('cc-active');
+
+    requestAnimationFrame(() => {
+      this.initialView.classList.add('cc-active');
+    });
   }
 
   /**
@@ -915,9 +1105,42 @@ class CookieConsent {
   }
 
   /**
+   * Set loading state on a button
+   * @param {HTMLElement} button - The button element
+   * @param {boolean} loading - Whether to show loading state
+   */
+  _setButtonLoading(button, loading) {
+    if (!button) return;
+    if (loading) {
+      button.classList.add('cc-btn-loading');
+      button.setAttribute('aria-busy', 'true');
+    } else {
+      button.classList.remove('cc-btn-loading');
+      button.removeAttribute('aria-busy');
+    }
+  }
+
+  /**
+   * Execute a callback and wait for it if it returns a Promise
+   * @param {Function} callback - The callback to execute
+   * @param {Object} data - Data to pass to the callback
+   * @returns {Promise}
+   */
+  async _executeCallback(callback, data) {
+    if (!callback) return;
+    const result = callback(data);
+    if (result instanceof Promise) {
+      await result;
+    }
+  }
+
+  /**
    * Accept all cookies
    */
-  acceptAll() {
+  async acceptAll() {
+    const button = this.modal?.querySelector('[data-action="accept"]');
+    this._setButtonLoading(button, true);
+
     this.categories = {
       necessary: true,
       analytics: true,
@@ -929,17 +1152,20 @@ class CookieConsent {
     this._evaluateScripts();
     this._updateDebugBadge();
     this._announce('Cookie preferences saved. All cookies accepted.');
-    this.hide();
 
-    if (this.onAccept) {
-      this.onAccept(this.categories);
-    }
+    await this._executeCallback(this.onAccept, this.categories);
+
+    this._setButtonLoading(button, false);
+    this.hide();
   }
 
   /**
    * Reject all non-essential cookies
    */
-  rejectAll() {
+  async rejectAll() {
+    const button = this.modal?.querySelector('[data-action="reject"]');
+    this._setButtonLoading(button, true);
+
     this.categories = {
       necessary: true,
       analytics: false,
@@ -951,17 +1177,20 @@ class CookieConsent {
     this._evaluateScripts();
     this._updateDebugBadge();
     this._announce('Cookie preferences saved. Non-essential cookies rejected.');
-    this.hide();
 
-    if (this.onReject) {
-      this.onReject(this.categories);
-    }
+    await this._executeCallback(this.onReject, this.categories);
+
+    this._setButtonLoading(button, false);
+    this.hide();
   }
 
   /**
    * Save current preferences
    */
-  savePreferences() {
+  async savePreferences() {
+    const button = this.modal?.querySelector('[data-action="save"]');
+    this._setButtonLoading(button, true);
+
     // Read current toggle states
     this.modal.querySelectorAll('.cc-toggle-input[data-category]').forEach((input) => {
       const category = input.dataset.category;
@@ -973,17 +1202,22 @@ class CookieConsent {
     this._evaluateScripts();
     this._updateDebugBadge();
     this._announce('Cookie preferences saved.');
-    this.hide();
 
-    if (this.onSave) {
-      this.onSave(this.categories);
-    }
+    await this._executeCallback(this.onSave, this.categories);
+
+    this._setButtonLoading(button, false);
+    this.hide();
   }
 
   /**
-   * Save consent to localStorage
+   * Save consent to storage (localStorage or cookie)
    */
   _saveToStorage() {
+    // Generate consent ID if enabled and not already set
+    if (this.generateConsentId && !this.consentId) {
+      this.consentId = this._generateConsentId();
+    }
+
     const consent = {
       necessary: this.categories.necessary,
       analytics: this.categories.analytics,
@@ -991,24 +1225,50 @@ class CookieConsent {
       timestamp: new Date().toISOString()
     };
 
+    // Add consent ID if generated
+    if (this.consentId) {
+      consent.consentId = this.consentId;
+    }
+
+    const encodedData = this._encodeData(consent);
+
     try {
-      localStorage.setItem(this.storageKey, JSON.stringify(consent));
+      if (this.storageMethod === 'cookie') {
+        this._setCookie(this.storageKey, encodedData);
+      } else {
+        localStorage.setItem(this.storageKey, encodedData);
+      }
+      this._log('Consent saved to ' + this.storageMethod, consent);
     } catch (e) {
-      console.warn('Cookie consent: Unable to save to localStorage', e);
+      console.warn('Cookie consent: Unable to save to ' + this.storageMethod, e);
     }
   }
 
   /**
-   * Get current consent from localStorage
+   * Get current consent from storage (localStorage or cookie)
    * @returns {Object|null} Consent object or null if not found
    */
   getConsent() {
     try {
-      const stored = localStorage.getItem(this.storageKey);
+      let stored;
+      if (this.storageMethod === 'cookie') {
+        stored = this._getCookie(this.storageKey);
+      } else {
+        stored = localStorage.getItem(this.storageKey);
+      }
+
       if (!stored) return null;
-      return JSON.parse(stored);
+
+      const consent = this._decodeData(stored);
+
+      // Store consent ID if present
+      if (consent && consent.consentId) {
+        this.consentId = consent.consentId;
+      }
+
+      return consent;
     } catch (e) {
-      console.warn('Cookie consent: Unable to read from localStorage', e);
+      console.warn('Cookie consent: Unable to read from ' + this.storageMethod, e);
       return null;
     }
   }
@@ -1018,9 +1278,13 @@ class CookieConsent {
    */
   resetConsent() {
     try {
-      localStorage.removeItem(this.storageKey);
+      if (this.storageMethod === 'cookie') {
+        this._deleteCookie(this.storageKey);
+      } else {
+        localStorage.removeItem(this.storageKey);
+      }
     } catch (e) {
-      console.warn('Cookie consent: Unable to clear localStorage', e);
+      console.warn('Cookie consent: Unable to clear ' + this.storageMethod, e);
     }
 
     this.categories = {
@@ -1028,6 +1292,9 @@ class CookieConsent {
       analytics: false,
       marketing: false
     };
+
+    // Reset consent ID
+    this.consentId = null;
 
     this._log('Consent reset', null, 'warn');
 

@@ -29,6 +29,12 @@
   --cc-button-radius: 10px;
   --cc-card-radius: 8px;
   --cc-position-margin: 16px;
+
+  /* Animation Timing */
+  --cc-animation-duration: 200ms;
+  --cc-animation-duration-slow: 300ms;
+  --cc-animation-easing: cubic-bezier(0.4, 0, 0.2, 1);
+  --cc-animation-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* ============================================
@@ -41,7 +47,8 @@
   z-index: 9998;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.3s ease, visibility 0.3s ease;
+  transition: opacity var(--cc-animation-duration-slow) var(--cc-animation-easing),
+              visibility var(--cc-animation-duration-slow) var(--cc-animation-easing);
 }
 
 .cc-overlay.cc-visible {
@@ -66,7 +73,9 @@
   opacity: 0;
   visibility: hidden;
   transform: translateY(20px);
-  transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
+  transition: opacity var(--cc-animation-duration-slow) var(--cc-animation-easing),
+              visibility var(--cc-animation-duration-slow) var(--cc-animation-easing),
+              transform var(--cc-animation-duration-slow) var(--cc-animation-spring);
 }
 
 .cc-modal.cc-visible {
@@ -105,14 +114,22 @@
 }
 
 /* ============================================
-   View Management
+   View Management (with smooth transitions)
    ============================================ */
 .cc-view {
-  display: none;
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  transition: opacity var(--cc-animation-duration-slow) var(--cc-animation-easing),
+              max-height var(--cc-animation-duration-slow) var(--cc-animation-easing),
+              visibility var(--cc-animation-duration-slow) var(--cc-animation-easing);
 }
 
 .cc-view.cc-active {
-  display: block;
+  opacity: 1;
+  max-height: 1000px;
+  visibility: visible;
 }
 
 /* ============================================
@@ -138,7 +155,10 @@
   line-height: 20px;
   border-radius: var(--cc-button-radius);
   cursor: pointer;
-  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.1s ease;
+  transition: background-color var(--cc-animation-duration) var(--cc-animation-easing),
+              border-color var(--cc-animation-duration) var(--cc-animation-easing),
+              transform 100ms var(--cc-animation-easing),
+              opacity var(--cc-animation-duration) var(--cc-animation-easing);
   text-align: center;
   white-space: nowrap;
 }
@@ -173,6 +193,33 @@
 .cc-btn-outline:hover {
   border-color: var(--cc-text-secondary);
   background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Loading state for buttons */
+.cc-btn-loading {
+  position: relative;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.cc-btn-loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.2) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: cc-btn-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes cc-btn-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 /* Full-width button */
@@ -247,7 +294,9 @@
   border: 0.5px solid var(--cc-toggle-off-border);
   border-radius: 9999px;
   cursor: pointer;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
+  transition: background-color var(--cc-animation-duration) var(--cc-animation-easing),
+              border-color var(--cc-animation-duration) var(--cc-animation-easing),
+              transform 400ms var(--cc-animation-spring);
 }
 
 .cc-toggle-slider::before {
@@ -259,7 +308,18 @@
   height: 16px;
   background-color: var(--cc-toggle-thumb);
   border-radius: 9999px;
-  transition: transform 0.2s ease;
+  transition: transform var(--cc-animation-duration) var(--cc-animation-spring);
+}
+
+/* Toggle bounce animation on state change */
+.cc-toggle-slider.cc-toggle-animating {
+  animation: cc-toggle-bounce 400ms var(--cc-animation-spring);
+}
+
+@keyframes cc-toggle-bounce {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
 }
 
 /* On State: Solid blue background */
@@ -319,10 +379,21 @@
 @media (prefers-reduced-motion: reduce) {
   .cc-overlay,
   .cc-modal,
+  .cc-view,
   .cc-btn,
   .cc-toggle-slider,
   .cc-toggle-slider::before {
     transition: none;
+    animation: none;
+  }
+
+  .cc-toggle-slider.cc-toggle-animating {
+    animation: none;
+  }
+
+  .cc-btn-loading::after {
+    animation: none;
+    background: rgba(255, 255, 255, 0.2);
   }
 }
 

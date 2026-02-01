@@ -8,10 +8,13 @@ A lightweight, GDPR-compliant cookie consent dialog built with vanilla HTML, CSS
 - Three cookie categories: Necessary, Analytics, and Marketing
 - Customizable settings panel with toggle switches
 - Fully customizable text content (headings, descriptions, buttons)
-- localStorage persistence across sessions
+- Flexible storage: localStorage or cookies with configurable options
+- Optional Base64 encoding for consent data
+- Consent ID generation for server-side tracking
 - Accessible (WCAG 2.1 AA compliant - see Accessibility section)
 - Responsive design for mobile devices
-- Callback hooks for integration with your application
+- Smooth animations and micro-interactions
+- Callback hooks for integration with your application (supports async callbacks)
 
 ## Installation
 
@@ -51,13 +54,86 @@ cookieConsent.init();
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `storageKey` | string | `'cookie_consent'` | localStorage key for storing consent |
+| `storageKey` | string | `'cookie_consent'` | Key for storing consent (localStorage or cookie name) |
+| `storageMethod` | string | `'localStorage'` | Storage method: `'localStorage'` or `'cookie'` |
+| `cookieOptions` | object | See below | Cookie configuration when using cookie storage |
+| `encryption` | boolean | `false` | Enable Base64 encoding for stored consent data |
+| `generateConsentId` | boolean | `false` | Generate unique UUID for each consent record |
 | `policyUrl` | string | `'#'` | URL to your cookie policy page |
 | `debug` | boolean | `false` | Enable debug mode with visual indicators |
-| `onAccept` | function | `null` | Callback when user accepts all cookies |
-| `onReject` | function | `null` | Callback when user rejects non-essential cookies |
-| `onSave` | function | `null` | Callback when user saves custom preferences |
+| `onAccept` | function | `null` | Callback when user accepts all cookies (can be async) |
+| `onReject` | function | `null` | Callback when user rejects non-essential cookies (can be async) |
+| `onSave` | function | `null` | Callback when user saves custom preferences (can be async) |
 | `content` | object | See below | Customize all text content in the modal |
+
+### Cookie Storage Options
+
+When using `storageMethod: 'cookie'`, you can configure cookie attributes:
+
+```javascript
+const cookieConsent = new CookieConsent({
+  storageMethod: 'cookie',
+  cookieOptions: {
+    sameSite: 'Strict',  // 'Strict', 'Lax', or 'None'
+    secure: true,        // Only send over HTTPS
+    domain: null,        // Cookie domain (null = current domain)
+    path: '/',           // Cookie path
+    expires: 365         // Days until expiration
+  }
+});
+```
+
+**Default cookie options:**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `sameSite` | `'Strict'` | SameSite attribute for CSRF protection |
+| `secure` | `true` | Only transmit over HTTPS |
+| `domain` | `null` | Cookie domain (current domain if null) |
+| `path` | `'/'` | Cookie path |
+| `expires` | `365` | Expiration in days |
+
+### Encryption & Consent ID
+
+Enable Base64 encoding and consent ID generation for enhanced tracking:
+
+```javascript
+const cookieConsent = new CookieConsent({
+  storageMethod: 'cookie',
+  encryption: true,         // Base64 encode the consent data
+  generateConsentId: true,  // Generate unique UUID for each consent
+  onSave: async (categories) => {
+    // Send consent to your server with the consent ID
+    const consent = cookieConsent.getConsent();
+    await fetch('/api/consent', {
+      method: 'POST',
+      body: JSON.stringify({
+        consentId: consent.consentId,
+        categories
+      })
+    });
+  }
+});
+```
+
+**Security Notes:**
+- `encryption: true` uses Base64 encoding for light obfuscation, not cryptographic security
+- HttpOnly cookies cannot be set via JavaScript - use server-side for true HttpOnly cookies
+- The consent ID is a UUID v4 suitable for server-side consent record keeping
+
+### Storage Migration
+
+When switching from localStorage to cookies, existing consent is automatically migrated:
+
+```javascript
+// Previously used localStorage (default)
+const oldConsent = new CookieConsent();
+
+// Now switching to cookies - existing consent migrates automatically
+const newConsent = new CookieConsent({
+  storageMethod: 'cookie'
+});
+```
 
 ### Content Customization
 
@@ -126,21 +202,22 @@ const cookieConsent = new CookieConsent({
 | `acceptAll()` | Accept all cookies and close |
 | `rejectAll()` | Reject non-essential cookies and close |
 | `savePreferences()` | Save current toggle states and close |
-| `getConsent()` | Get current consent object from localStorage |
+| `getConsent()` | Get current consent object from storage |
 | `resetConsent()` | Clear consent and show dialog again |
 | `isAllowed(category)` | Check if a category is allowed |
 | `exportDebug()` | Export debug state snapshot (debug mode) |
 
 ### Consent Object
 
-The consent object stored in localStorage has this structure:
+The consent object stored in storage has this structure:
 
 ```javascript
 {
   necessary: true,      // Always true
   analytics: boolean,
   marketing: boolean,
-  timestamp: string     // ISO date string
+  timestamp: string,    // ISO date string
+  consentId: string     // UUID (only if generateConsentId: true)
 }
 ```
 
@@ -210,7 +287,7 @@ Get a complete state snapshot:
 const debugState = cookieConsent.exportDebug();
 console.log(debugState);
 // {
-//   consent: { necessary: true, analytics: false, marketing: false, timestamp: "..." },
+//   consent: { necessary: true, analytics: false, marketing: false, timestamp: "...", consentId: "..." },
 //   categories: { necessary: true, analytics: false, marketing: false },
 //   scripts: [
 //     { src: "analytics.js", category: "analytics", status: "blocked" },
@@ -218,6 +295,9 @@ console.log(debugState);
 //   ],
 //   timestamp: "2024-01-15T10:30:00.000Z",
 //   storageKey: "cookie_consent",
+//   storageMethod: "localStorage",
+//   encryption: false,
+//   consentId: null,
 //   debugEnabled: true
 // }
 ```
