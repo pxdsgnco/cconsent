@@ -13,9 +13,11 @@
   --cc-text-secondary: #d1d5db;
   --cc-text-muted: #9ca3af;
   --cc-border-default: #4b5563;
-  --cc-toggle-active: rgba(37, 99, 235, 0.5);
+  --cc-toggle-on: #2c84db;
+  --cc-toggle-off: #000000;
+  --cc-toggle-disabled: #1e3d83;
+  --cc-toggle-off-border: rgba(222, 220, 209, 0.2);
   --cc-toggle-thumb: #ffffff;
-  --cc-toggle-inactive: #4b5563;
 
   /* Typography */
   --cc-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
@@ -146,7 +148,7 @@
 }
 
 .cc-btn:focus-visible {
-  outline: 2px solid var(--cc-toggle-active);
+  outline: 2px solid var(--cc-toggle-on);
   outline-offset: 2px;
 }
 
@@ -218,7 +220,8 @@
 }
 
 /* ============================================
-   Toggle Switch
+   Toggle Switch (Figma-exact specifications)
+   Track: 36×20px, Thumb: 16×16px, Padding: 3px
    ============================================ */
 .cc-toggle {
   position: relative;
@@ -234,44 +237,50 @@
   height: 0;
 }
 
+/* Off State: Black background with subtle border */
 .cc-toggle-slider {
   position: relative;
-  width: 44px;
-  height: 24px;
-  background-color: var(--cc-toggle-inactive);
-  border-radius: 12px;
+  width: 36px;
+  height: 20px;
+  background-color: var(--cc-toggle-off);
+  border: 0.5px solid var(--cc-toggle-off-border);
+  border-radius: 9999px;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .cc-toggle-slider::before {
   content: '';
   position: absolute;
   top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
   background-color: var(--cc-toggle-thumb);
-  border-radius: 50%;
+  border-radius: 9999px;
   transition: transform 0.2s ease;
 }
 
+/* On State: Solid blue background */
 .cc-toggle-input:checked + .cc-toggle-slider {
-  background-color: var(--cc-toggle-active);
+  background-color: var(--cc-toggle-on);
+  border-color: var(--cc-toggle-on);
 }
 
 .cc-toggle-input:checked + .cc-toggle-slider::before {
-  transform: translateX(20px);
+  transform: translateX(14px);
 }
 
 .cc-toggle-input:focus-visible + .cc-toggle-slider {
-  outline: 2px solid var(--cc-toggle-active);
+  outline: 2px solid var(--cc-toggle-on);
   outline-offset: 2px;
 }
 
+/* Disabled State: Dark blue background (for "Required" toggles) */
 .cc-toggle-input:disabled + .cc-toggle-slider {
   cursor: not-allowed;
-  opacity: 0.7;
+  background-color: var(--cc-toggle-disabled);
+  border-color: var(--cc-toggle-disabled);
 }
 
 .cc-toggle-status {
