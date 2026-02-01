@@ -192,17 +192,18 @@
 
 .cc-category {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 12px;
   background-color: var(--cc-surface-secondary);
   border-radius: var(--cc-card-radius);
-  padding: 16px;
+  padding: 12px;
 }
 
 .cc-category-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  flex: 1;
+  gap: 4px;
 }
 
 .cc-category-label {
@@ -285,9 +286,11 @@
 
 .cc-toggle-status {
   font-size: 12px;
-  font-weight: 400;
+  font-weight: 600;
   line-height: 16px;
-  color: var(--cc-text-muted);
+  color: var(--cc-text-primary);
+  text-align: right;
+  white-space: nowrap;
   min-width: 52px;
 }
 
