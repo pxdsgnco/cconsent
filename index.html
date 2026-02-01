@@ -161,6 +161,11 @@
     <button class="reset-btn" id="reset-consent">Reset Consent & Show Dialog</button>
   </div>
 
+  <!-- Example scripts with data-cookie-category (for testing script blocking) -->
+  <!-- These scripts will be blocked until consent is given -->
+  <script data-cookie-category="analytics" src="https://example.com/fake-analytics.js"></script>
+  <script data-cookie-category="marketing" src="https://example.com/fake-marketing.js"></script>
+
   <!-- Cookie Consent Script -->
   <script src="js/cookie-consent.js"></script>
   <script>
@@ -199,9 +204,10 @@
       }
     }
 
-    // Initialize cookie consent
+    // Initialize cookie consent with debug mode enabled
     const cookieConsent = new CookieConsent({
       policyUrl: 'https://example.com/cookie-policy',
+      debug: true,  // Enable debug mode for development
       onAccept: function(categories) {
         console.log('All cookies accepted:', categories);
         updateStatusDisplay(cookieConsent.getConsent());

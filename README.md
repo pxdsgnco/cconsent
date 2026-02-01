@@ -53,6 +53,7 @@ cookieConsent.init();
 |--------|------|---------|-------------|
 | `storageKey` | string | `'cookie_consent'` | localStorage key for storing consent |
 | `policyUrl` | string | `'#'` | URL to your cookie policy page |
+| `debug` | boolean | `false` | Enable debug mode with visual indicators |
 | `onAccept` | function | `null` | Callback when user accepts all cookies |
 | `onReject` | function | `null` | Callback when user rejects non-essential cookies |
 | `onSave` | function | `null` | Callback when user saves custom preferences |
@@ -128,6 +129,7 @@ const cookieConsent = new CookieConsent({
 | `getConsent()` | Get current consent object from localStorage |
 | `resetConsent()` | Clear consent and show dialog again |
 | `isAllowed(category)` | Check if a category is allowed |
+| `exportDebug()` | Export debug state snapshot (debug mode) |
 
 ### Consent Object
 
@@ -149,6 +151,76 @@ The consent object stored in localStorage has this structure:
 | Necessary | ON | No | Required for security and basic functionality |
 | Analytics | OFF | Yes | Site usage and performance tracking |
 | Marketing | OFF | Yes | Personalized ads and cross-site tracking |
+
+## Script Blocking
+
+Scripts can be automatically blocked until the user gives consent. Add a `data-cookie-category` attribute to any script tag:
+
+```html
+<!-- These scripts will be blocked until consent is given -->
+<script data-cookie-category="analytics" src="https://analytics.example.com/script.js"></script>
+<script data-cookie-category="marketing" src="https://ads.example.com/pixel.js"></script>
+
+<!-- Necessary scripts load normally (no attribute needed) -->
+<script src="https://example.com/essential.js"></script>
+```
+
+When the page loads:
+1. Scripts with `data-cookie-category` are scanned and blocked (src removed)
+2. When consent is given for a category, scripts are loaded dynamically
+3. This works for both external scripts (with `src`) and inline scripts
+
+## Debug Mode
+
+Enable debug mode during development to visualize consent state and script blocking:
+
+```javascript
+const cookieConsent = new CookieConsent({
+  debug: true,  // Enable debug mode
+  // ... other options
+});
+```
+
+### Debug Features
+
+**Visual Debug Badge**
+- Floating badge in bottom-left corner showing current consent state
+- Real-time updates when consent changes
+- Click header to collapse/expand
+
+**Console Logging**
+- Styled console logs for all state changes
+- Logs when scripts are blocked/allowed
+- Prefix: `[cconsent]`
+
+**Scripts Table**
+- Shows all managed scripts with their category and status
+- Status indicators: 🟢 Loaded, 🔴 Blocked, ⏳ Pending
+
+**Simulation Buttons**
+- **Clear Consent**: Reset consent and show dialog again
+- **Randomize**: Set random analytics/marketing values (for testing)
+- **Export**: Copy debug state to clipboard as JSON
+
+### exportDebug() Method
+
+Get a complete state snapshot:
+
+```javascript
+const debugState = cookieConsent.exportDebug();
+console.log(debugState);
+// {
+//   consent: { necessary: true, analytics: false, marketing: false, timestamp: "..." },
+//   categories: { necessary: true, analytics: false, marketing: false },
+//   scripts: [
+//     { src: "analytics.js", category: "analytics", status: "blocked" },
+//     { src: "ads.js", category: "marketing", status: "blocked" }
+//   ],
+//   timestamp: "2024-01-15T10:30:00.000Z",
+//   storageKey: "cookie_consent",
+//   debugEnabled: true
+// }
+```
 
 ## Browser Support
 

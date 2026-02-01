@@ -11,6 +11,11 @@ class CookieConsent {
     this.onReject = options.onReject || null;
     this.onSave = options.onSave || null;
 
+    // Debug mode
+    this.debug = options.debug || false;
+    this.managedScripts = []; // Track scripts with data-cookie-category
+    this.debugBadge = null;
+
     // Default content for all text in the modal
     const defaultContent = {
       initialView: {
@@ -84,10 +89,160 @@ class CookieConsent {
   }
 
   /**
+   * Debug logging helper - only outputs when debug mode is enabled
+   * @param {string} message - The log message
+   * @param {*} data - Optional data to log
+   * @param {string} type - Log type: 'info', 'warn', 'error', 'success'
+   */
+  _log(message, data = null, type = 'info') {
+    if (!this.debug) return;
+
+    const prefix = '%c[cconsent]';
+    const styles = {
+      info: 'color: #60a5fa; font-weight: bold;',
+      warn: 'color: #fbbf24; font-weight: bold;',
+      error: 'color: #ef4444; font-weight: bold;',
+      success: 'color: #22c55e; font-weight: bold;'
+    };
+
+    const style = styles[type] || styles.info;
+
+    if (data !== null) {
+      console.log(prefix, style, message, data);
+    } else {
+      console.log(prefix, style, message);
+    }
+  }
+
+  /**
+   * Scan the document for scripts with data-cookie-category attribute
+   */
+  _scanScripts() {
+    const scripts = document.querySelectorAll('script[data-cookie-category]');
+    this.managedScripts = [];
+
+    scripts.forEach((script) => {
+      const category = script.getAttribute('data-cookie-category');
+      const originalSrc = script.getAttribute('src') || null;
+      const inlineContent = script.textContent || null;
+
+      const managedScript = {
+        element: script,
+        category: category,
+        originalSrc: originalSrc,
+        inlineContent: inlineContent,
+        blocked: false,
+        executed: false
+      };
+
+      this.managedScripts.push(managedScript);
+      this._log(`Found script: ${originalSrc || '[inline]'} (category: ${category})`);
+    });
+
+    this._log(`Total managed scripts: ${this.managedScripts.length}`);
+  }
+
+  /**
+   * Evaluate all managed scripts based on current consent
+   */
+  _evaluateScripts() {
+    this.managedScripts.forEach((script) => {
+      const isAllowed = this.isAllowed(script.category);
+
+      if (isAllowed && !script.executed) {
+        this._allowScript(script);
+      } else if (!isAllowed && !script.blocked) {
+        this._blockScript(script);
+      }
+    });
+
+    this._updateDebugBadge();
+  }
+
+  /**
+   * Block a script from executing
+   * @param {Object} script - Managed script object
+   */
+  _blockScript(script) {
+    if (script.originalSrc) {
+      // Remove src to prevent loading
+      script.element.removeAttribute('src');
+      // Set type to prevent execution
+      script.element.setAttribute('type', 'text/plain');
+    }
+    script.blocked = true;
+    this._log(`Script blocked: ${script.originalSrc || '[inline]'} (${script.category})`, null, 'warn');
+  }
+
+  /**
+   * Allow a script to execute
+   * @param {Object} script - Managed script object
+   */
+  _allowScript(script) {
+    if (script.executed) return;
+
+    if (script.originalSrc) {
+      // Create a new script element to ensure it loads
+      const newScript = document.createElement('script');
+      newScript.src = script.originalSrc;
+      newScript.setAttribute('data-cookie-category', script.category);
+      newScript.setAttribute('data-cconsent-loaded', 'true');
+
+      // Copy other attributes
+      Array.from(script.element.attributes).forEach((attr) => {
+        if (attr.name !== 'src' && attr.name !== 'type' && attr.name !== 'data-cookie-category') {
+          newScript.setAttribute(attr.name, attr.value);
+        }
+      });
+
+      // Replace the old script
+      script.element.parentNode.replaceChild(newScript, script.element);
+      script.element = newScript;
+    } else if (script.inlineContent) {
+      // For inline scripts, create and execute
+      const newScript = document.createElement('script');
+      newScript.textContent = script.inlineContent;
+      newScript.setAttribute('data-cookie-category', script.category);
+      newScript.setAttribute('data-cconsent-loaded', 'true');
+
+      script.element.parentNode.replaceChild(newScript, script.element);
+      script.element = newScript;
+    }
+
+    script.blocked = false;
+    script.executed = true;
+    this._log(`Script allowed: ${script.originalSrc || '[inline]'} (${script.category})`, null, 'success');
+  }
+
+  /**
+   * Export debug information
+   * @returns {Object} Debug state snapshot
+   */
+  exportDebug() {
+    return {
+      consent: this.getConsent(),
+      categories: { ...this.categories },
+      scripts: this.managedScripts.map((s) => ({
+        src: s.originalSrc || '[inline]',
+        category: s.category,
+        status: s.executed ? 'allowed' : (s.blocked ? 'blocked' : 'pending')
+      })),
+      timestamp: new Date().toISOString(),
+      storageKey: this.storageKey,
+      debugEnabled: this.debug
+    };
+  }
+
+  /**
    * Initialize the cookie consent dialog
    * Shows the dialog if no consent has been given
    */
   init() {
+    this._log('Initializing cookie consent...');
+
+    // Scan for scripts with data-cookie-category
+    this._scanScripts();
+
     // Check if consent already exists
     const existingConsent = this.getConsent();
     if (existingConsent) {
@@ -97,7 +252,26 @@ class CookieConsent {
         analytics: existingConsent.analytics || false,
         marketing: existingConsent.marketing || false
       };
+      this._log('Existing consent found:', this.categories, 'success');
+
+      // Evaluate scripts based on existing consent
+      this._evaluateScripts();
+
+      // Create debug badge if debug mode enabled
+      if (this.debug) {
+        this._createDebugBadge();
+      }
       return;
+    }
+
+    this._log('No consent found, showing dialog');
+
+    // Block all non-necessary scripts until consent is given
+    this._evaluateScripts();
+
+    // Create debug badge if debug mode enabled
+    if (this.debug) {
+      this._createDebugBadge();
     }
 
     // Create and show the dialog
@@ -404,6 +578,202 @@ class CookieConsent {
   }
 
   /**
+   * Create the debug badge UI
+   */
+  _createDebugBadge() {
+    if (this.debugBadge) {
+      this.debugBadge.remove();
+    }
+
+    const badge = this._createElement('div', { className: 'cc-debug-badge' });
+
+    // Header (collapsible)
+    const header = this._createElement('div', { className: 'cc-debug-header' });
+    const headerIcon = this._createElement('span', {
+      className: 'cc-debug-icon',
+      textContent: '🍪'
+    });
+    const headerText = document.createTextNode(' Cookie Consent Debug');
+    header.appendChild(headerIcon);
+    header.appendChild(headerText);
+    header.addEventListener('click', () => {
+      badge.classList.toggle('cc-debug-collapsed');
+    });
+
+    // Content container
+    const content = this._createElement('div', { className: 'cc-debug-content' });
+
+    // Consent status rows
+    const statusContainer = this._createElement('div', { className: 'cc-debug-status' });
+
+    ['necessary', 'analytics', 'marketing'].forEach((category) => {
+      const row = this._createElement('div', { className: 'cc-debug-row' });
+      const label = this._createElement('span', {
+        className: 'cc-debug-label',
+        textContent: category.charAt(0).toUpperCase() + category.slice(1)
+      });
+      const value = this._createElement('span', {
+        className: 'cc-debug-value'
+      });
+      value.setAttribute('data-debug-category', category);
+      row.appendChild(label);
+      row.appendChild(value);
+      statusContainer.appendChild(row);
+    });
+
+    content.appendChild(statusContainer);
+
+    // Scripts section
+    const scriptsSection = this._createElement('div', { className: 'cc-debug-scripts' });
+    const scriptsHeader = this._createElement('div', {
+      className: 'cc-debug-scripts-header',
+      textContent: 'Managed Scripts'
+    });
+    const scriptsCount = this._createElement('span', { className: 'cc-debug-scripts-count' });
+    scriptsHeader.appendChild(scriptsCount);
+    scriptsSection.appendChild(scriptsHeader);
+
+    const scriptsTable = this._createElement('div', { className: 'cc-debug-table' });
+    scriptsSection.appendChild(scriptsTable);
+    content.appendChild(scriptsSection);
+
+    // Simulation buttons
+    const buttons = this._createElement('div', { className: 'cc-debug-buttons' });
+
+    const clearBtn = this._createElement('button', {
+      className: 'cc-debug-btn',
+      textContent: 'Clear Consent'
+    });
+    clearBtn.addEventListener('click', () => {
+      this._log('Debug: Clearing consent');
+      this.resetConsent();
+    });
+
+    const randomBtn = this._createElement('button', {
+      className: 'cc-debug-btn',
+      textContent: 'Randomize'
+    });
+    randomBtn.addEventListener('click', () => {
+      this._log('Debug: Randomizing consent');
+      this.categories = {
+        necessary: true,
+        analytics: Math.random() > 0.5,
+        marketing: Math.random() > 0.5
+      };
+      this._saveToStorage();
+      this._evaluateScripts();
+      this._updateDebugBadge();
+      this._log('Randomized consent:', this.categories);
+    });
+
+    const exportBtn = this._createElement('button', {
+      className: 'cc-debug-btn',
+      textContent: 'Export'
+    });
+    exportBtn.addEventListener('click', () => {
+      const debugData = this.exportDebug();
+      console.log('%c[cconsent] Debug Export:', 'color: #60a5fa; font-weight: bold;', debugData);
+      // Copy to clipboard
+      navigator.clipboard.writeText(JSON.stringify(debugData, null, 2)).then(() => {
+        exportBtn.textContent = 'Copied!';
+        setTimeout(() => {
+          exportBtn.textContent = 'Export';
+        }, 1500);
+      });
+    });
+
+    buttons.appendChild(clearBtn);
+    buttons.appendChild(randomBtn);
+    buttons.appendChild(exportBtn);
+    content.appendChild(buttons);
+
+    badge.appendChild(header);
+    badge.appendChild(content);
+
+    document.body.appendChild(badge);
+    this.debugBadge = badge;
+
+    this._updateDebugBadge();
+  }
+
+  /**
+   * Update the debug badge with current state
+   */
+  _updateDebugBadge() {
+    if (!this.debugBadge) return;
+
+    const consent = this.getConsent();
+
+    // Update category status
+    ['necessary', 'analytics', 'marketing'].forEach((category) => {
+      const el = this.debugBadge.querySelector(`[data-debug-category="${category}"]`);
+      if (el) {
+        const isAllowed = consent ? consent[category] : (category === 'necessary');
+        el.textContent = isAllowed ? '🟢 ON' : '🔴 OFF';
+        el.className = 'cc-debug-value ' + (isAllowed ? 'cc-debug-allowed' : 'cc-debug-denied');
+      }
+    });
+
+    // Update scripts table
+    const table = this.debugBadge.querySelector('.cc-debug-table');
+    const count = this.debugBadge.querySelector('.cc-debug-scripts-count');
+
+    if (table) {
+      // Clear existing rows safely
+      while (table.firstChild) {
+        table.removeChild(table.firstChild);
+      }
+
+      if (this.managedScripts.length === 0) {
+        const emptyRow = this._createElement('div', {
+          className: 'cc-debug-table-empty',
+          textContent: 'No managed scripts found'
+        });
+        table.appendChild(emptyRow);
+      } else {
+        this.managedScripts.forEach((script) => {
+          const row = this._createElement('div', { className: 'cc-debug-table-row' });
+
+          const srcCell = this._createElement('span', {
+            className: 'cc-debug-table-src',
+            textContent: script.originalSrc ? script.originalSrc.split('/').pop() : '[inline]'
+          });
+          srcCell.title = script.originalSrc || 'Inline script';
+
+          const categoryCell = this._createElement('span', {
+            className: 'cc-debug-table-category',
+            textContent: script.category
+          });
+
+          const statusCell = this._createElement('span', {
+            className: 'cc-debug-table-status'
+          });
+
+          if (script.executed) {
+            statusCell.textContent = '🟢 Loaded';
+            statusCell.classList.add('cc-debug-allowed');
+          } else if (script.blocked) {
+            statusCell.textContent = '🔴 Blocked';
+            statusCell.classList.add('cc-debug-denied');
+          } else {
+            statusCell.textContent = '⏳ Pending';
+          }
+
+          row.appendChild(srcCell);
+          row.appendChild(categoryCell);
+          row.appendChild(statusCell);
+          table.appendChild(row);
+        });
+      }
+    }
+
+    if (count) {
+      const blockedCount = this.managedScripts.filter((s) => s.blocked && !s.executed).length;
+      count.textContent = blockedCount > 0 ? ` (${blockedCount} blocked)` : '';
+    }
+  }
+
+  /**
    * Show the cookie consent modal
    */
   show() {
@@ -481,7 +851,10 @@ class CookieConsent {
       marketing: true
     };
 
+    this._log('All cookies accepted', this.categories, 'success');
     this._saveToStorage();
+    this._evaluateScripts();
+    this._updateDebugBadge();
     this.hide();
 
     if (this.onAccept) {
@@ -499,7 +872,10 @@ class CookieConsent {
       marketing: false
     };
 
+    this._log('Non-essential cookies rejected', this.categories, 'warn');
     this._saveToStorage();
+    this._evaluateScripts();
+    this._updateDebugBadge();
     this.hide();
 
     if (this.onReject) {
@@ -517,7 +893,10 @@ class CookieConsent {
       this.categories[category] = input.checked;
     });
 
+    this._log('Preferences saved', this.categories, 'success');
     this._saveToStorage();
+    this._evaluateScripts();
+    this._updateDebugBadge();
     this.hide();
 
     if (this.onSave) {
@@ -574,11 +953,18 @@ class CookieConsent {
       marketing: false
     };
 
+    this._log('Consent reset', null, 'warn');
+
     // Remove existing modal if present
     if (this.modal) {
       this.modal.remove();
       this.overlay.remove();
     }
+
+    // Rescan scripts (they may have been replaced)
+    this._scanScripts();
+    this._evaluateScripts();
+    this._updateDebugBadge();
 
     // Recreate and show
     this._createModal();
@@ -593,8 +979,9 @@ class CookieConsent {
    */
   isAllowed(category) {
     const consent = this.getConsent();
-    if (!consent) return category === 'necessary';
-    return consent[category] === true;
+    const allowed = consent ? consent[category] === true : category === 'necessary';
+    this._log(`Category '${category}' checked: ${allowed ? 'allowed' : 'denied'}`);
+    return allowed;
   }
 }
 
