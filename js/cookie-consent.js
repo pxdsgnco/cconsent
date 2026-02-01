@@ -235,21 +235,21 @@ class CookieConsent {
     const categories = this._createElement('div', { className: 'cc-categories' });
     categories.appendChild(this._createCategoryCard(
       'Necessary',
-      'Required for security and basic functionality',
+      'Enables security and basic functionality.',
       'cc-necessary',
       'necessary',
       true
     ));
     categories.appendChild(this._createCategoryCard(
       'Analytics',
-      'Help us understand site usage and performance',
+      'Enables tracking of site performance.',
       'cc-analytics',
       'analytics',
       false
     ));
     categories.appendChild(this._createCategoryCard(
       'Marketing',
-      'Personalized ads and tracking across sites',
+      'Enables ads personalization and tracking.',
       'cc-marketing',
       'marketing',
       false
