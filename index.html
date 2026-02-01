@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cookie Consent Demo</title>
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Cookie Consent Styles -->
+  <link rel="stylesheet" href="css/cookie-consent.css">
+
+  <style>
+    /* Demo page styles */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: #111827;
+      color: #f9fafb;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .demo-container {
+      max-width: 600px;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 32px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #ffffff;
+    }
+
+    p {
+      font-size: 16px;
+      line-height: 1.6;
+      color: #9ca3af;
+      margin-bottom: 32px;
+    }
+
+    .consent-status {
+      background-color: #1f2937;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      text-align: left;
+    }
+
+    .consent-status h2 {
+      font-size: 18px;
+      font-weight: 500;
+      margin-bottom: 16px;
+      color: #ffffff;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #374151;
+    }
+
+    .status-row:last-child {
+      border-bottom: none;
+    }
+
+    .status-label {
+      font-size: 14px;
+      color: #d1d5db;
+    }
+
+    .status-value {
+      font-size: 14px;
+      font-weight: 500;
+      padding: 4px 12px;
+      border-radius: 9999px;
+    }
+
+    .status-value.allowed {
+      background-color: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+    }
+
+    .status-value.denied {
+      background-color: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .status-value.none {
+      background-color: rgba(156, 163, 175, 0.2);
+      color: #9ca3af;
+    }
+
+    .reset-btn {
+      background-color: transparent;
+      color: #60a5fa;
+      border: 1px solid #60a5fa;
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background-color 0.2s, color 0.2s;
+    }
+
+    .reset-btn:hover {
+      background-color: #60a5fa;
+      color: #111827;
+    }
+
+    .reset-btn:focus-visible {
+      outline: 2px solid #60a5fa;
+      outline-offset: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="demo-container">
+    <h1>Cookie Consent Demo</h1>
+    <p>
+      This page demonstrates a GDPR-compliant cookie consent dialog.
+      The consent status is stored in localStorage and persists across page refreshes.
+    </p>
+
+    <div class="consent-status">
+      <h2>Current Consent Status</h2>
+      <div class="status-row">
+        <span class="status-label">Necessary Cookies</span>
+        <span class="status-value none" id="status-necessary">No consent yet</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Analytics Cookies</span>
+        <span class="status-value none" id="status-analytics">No consent yet</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Marketing Cookies</span>
+        <span class="status-value none" id="status-marketing">No consent yet</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Consent Timestamp</span>
+        <span class="status-value none" id="status-timestamp">No consent yet</span>
+      </div>
+    </div>
+
+    <button class="reset-btn" id="reset-consent">Reset Consent & Show Dialog</button>
+  </div>
+
+  <!-- Cookie Consent Script -->
+  <script src="js/cookie-consent.js"></script>
+  <script>
+    // Update consent status display
+    function updateStatusDisplay(consent) {
+      const statusNecessary = document.getElementById('status-necessary');
+      const statusAnalytics = document.getElementById('status-analytics');
+      const statusMarketing = document.getElementById('status-marketing');
+      const statusTimestamp = document.getElementById('status-timestamp');
+
+      if (!consent) {
+        [statusNecessary, statusAnalytics, statusMarketing, statusTimestamp].forEach(el => {
+          el.textContent = 'No consent yet';
+          el.className = 'status-value none';
+        });
+        return;
+      }
+
+      // Update necessary
+      statusNecessary.textContent = consent.necessary ? 'Allowed' : 'Denied';
+      statusNecessary.className = 'status-value ' + (consent.necessary ? 'allowed' : 'denied');
+
+      // Update analytics
+      statusAnalytics.textContent = consent.analytics ? 'Allowed' : 'Denied';
+      statusAnalytics.className = 'status-value ' + (consent.analytics ? 'allowed' : 'denied');
+
+      // Update marketing
+      statusMarketing.textContent = consent.marketing ? 'Allowed' : 'Denied';
+      statusMarketing.className = 'status-value ' + (consent.marketing ? 'allowed' : 'denied');
+
+      // Update timestamp
+      if (consent.timestamp) {
+        const date = new Date(consent.timestamp);
+        statusTimestamp.textContent = date.toLocaleString();
+        statusTimestamp.className = 'status-value allowed';
+      }
+    }
+
+    // Initialize cookie consent
+    const cookieConsent = new CookieConsent({
+      policyUrl: 'https://example.com/cookie-policy',
+      onAccept: function(categories) {
+        console.log('All cookies accepted:', categories);
+        updateStatusDisplay(cookieConsent.getConsent());
+      },
+      onReject: function(categories) {
+        console.log('Non-essential cookies rejected:', categories);
+        updateStatusDisplay(cookieConsent.getConsent());
+      },
+      onSave: function(categories) {
+        console.log('Preferences saved:', categories);
+        updateStatusDisplay(cookieConsent.getConsent());
+      }
+    });
+
+    // Initialize on page load
+    cookieConsent.init();
+
+    // Update display with existing consent
+    updateStatusDisplay(cookieConsent.getConsent());
+
+    // Reset button handler
+    document.getElementById('reset-consent').addEventListener('click', function() {
+      cookieConsent.resetConsent();
+      updateStatusDisplay(null);
+    });
+  </script>
+</body>
+</html>

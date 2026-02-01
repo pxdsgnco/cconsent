@@ -1,0 +1,315 @@
+/* Cookie Consent Dialog Styles
+ * Matches Figma design specifications
+ */
+
+/* ============================================
+   Design Tokens (CSS Custom Properties)
+   ============================================ */
+:root {
+  /* Colors */
+  --cc-surface-primary: #000000;
+  --cc-surface-secondary: #1a1a1a;
+  --cc-text-primary: #ffffff;
+  --cc-text-secondary: #d1d5db;
+  --cc-text-muted: #9ca3af;
+  --cc-border-default: #4b5563;
+  --cc-toggle-active: rgba(37, 99, 235, 0.5);
+  --cc-toggle-thumb: #ffffff;
+  --cc-toggle-inactive: #4b5563;
+
+  /* Typography */
+  --cc-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+
+  /* Spacing */
+  --cc-modal-width: 448px;
+  --cc-modal-padding: 32px;
+  --cc-modal-radius: 24px;
+  --cc-button-radius: 10px;
+  --cc-card-radius: 8px;
+  --cc-position-margin: 16px;
+}
+
+/* ============================================
+   Modal Container & Overlay
+   ============================================ */
+.cc-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 9998;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.cc-overlay.cc-visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.cc-modal {
+  position: fixed;
+  bottom: var(--cc-position-margin);
+  right: var(--cc-position-margin);
+  width: var(--cc-modal-width);
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  background-color: var(--cc-surface-primary);
+  border-radius: var(--cc-modal-radius);
+  padding: var(--cc-modal-padding);
+  font-family: var(--cc-font-family);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+  overflow-y: auto;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(20px);
+  transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
+}
+
+.cc-modal.cc-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+/* ============================================
+   Typography
+   ============================================ */
+.cc-heading {
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 28px;
+  color: var(--cc-text-primary);
+  margin: 0 0 12px 0;
+}
+
+.cc-description {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  color: var(--cc-text-secondary);
+  margin: 0 0 24px 0;
+}
+
+.cc-description a {
+  color: var(--cc-text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.cc-description a:hover {
+  color: var(--cc-text-primary);
+}
+
+/* ============================================
+   View Management
+   ============================================ */
+.cc-view {
+  display: none;
+}
+
+.cc-view.cc-active {
+  display: block;
+}
+
+/* ============================================
+   Buttons
+   ============================================ */
+.cc-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cc-buttons-row {
+  display: flex;
+  gap: 12px;
+}
+
+.cc-btn {
+  flex: 1;
+  padding: 12px 20px;
+  font-family: var(--cc-font-family);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  border-radius: var(--cc-button-radius);
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.1s ease;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.cc-btn:active {
+  transform: scale(0.98);
+}
+
+.cc-btn:focus-visible {
+  outline: 2px solid var(--cc-toggle-active);
+  outline-offset: 2px;
+}
+
+/* Primary Button (filled) */
+.cc-btn-primary {
+  background-color: var(--cc-text-primary);
+  color: var(--cc-surface-primary);
+  border: none;
+}
+
+.cc-btn-primary:hover {
+  background-color: #e5e5e5;
+}
+
+/* Outline Button */
+.cc-btn-outline {
+  background-color: transparent;
+  color: var(--cc-text-primary);
+  border: 1px solid var(--cc-border-default);
+}
+
+.cc-btn-outline:hover {
+  border-color: var(--cc-text-secondary);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Full-width button */
+.cc-btn-full {
+  width: 100%;
+}
+
+/* ============================================
+   Cookie Category Cards
+   ============================================ */
+.cc-categories {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.cc-category {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--cc-surface-secondary);
+  border-radius: var(--cc-card-radius);
+  padding: 16px;
+}
+
+.cc-category-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cc-category-label {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  color: var(--cc-text-primary);
+}
+
+.cc-category-description {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  color: var(--cc-text-muted);
+}
+
+/* ============================================
+   Toggle Switch
+   ============================================ */
+.cc-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cc-toggle-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.cc-toggle-slider {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background-color: var(--cc-toggle-inactive);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.cc-toggle-slider::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background-color: var(--cc-toggle-thumb);
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+}
+
+.cc-toggle-input:checked + .cc-toggle-slider {
+  background-color: var(--cc-toggle-active);
+}
+
+.cc-toggle-input:checked + .cc-toggle-slider::before {
+  transform: translateX(20px);
+}
+
+.cc-toggle-input:focus-visible + .cc-toggle-slider {
+  outline: 2px solid var(--cc-toggle-active);
+  outline-offset: 2px;
+}
+
+.cc-toggle-input:disabled + .cc-toggle-slider {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.cc-toggle-status {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  color: var(--cc-text-muted);
+  min-width: 52px;
+}
+
+/* ============================================
+   Responsive Adjustments
+   ============================================ */
+@media (max-width: 480px) {
+  .cc-modal {
+    bottom: 0;
+    right: 0;
+    left: 0;
+    width: 100%;
+    max-width: 100%;
+    border-radius: var(--cc-modal-radius) var(--cc-modal-radius) 0 0;
+    padding: 24px;
+  }
+
+  .cc-buttons-row {
+    flex-direction: column;
+  }
+}
+
+/* ============================================
+   Accessibility: Reduced Motion
+   ============================================ */
+@media (prefers-reduced-motion: reduce) {
+  .cc-overlay,
+  .cc-modal,
+  .cc-btn,
+  .cc-toggle-slider,
+  .cc-toggle-slider::before {
+    transition: none;
+  }
+}
