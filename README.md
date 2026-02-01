@@ -7,6 +7,7 @@ A lightweight, GDPR-compliant cookie consent dialog built with vanilla HTML, CSS
 - Clean, modern dark theme design
 - Three cookie categories: Necessary, Analytics, and Marketing
 - Customizable settings panel with toggle switches
+- Fully customizable text content (headings, descriptions, buttons)
 - localStorage persistence across sessions
 - Accessible (ARIA attributes, keyboard navigation, focus management)
 - Responsive design for mobile devices
@@ -55,6 +56,62 @@ cookieConsent.init();
 | `onAccept` | function | `null` | Callback when user accepts all cookies |
 | `onReject` | function | `null` | Callback when user rejects non-essential cookies |
 | `onSave` | function | `null` | Callback when user saves custom preferences |
+| `content` | object | See below | Customize all text content in the modal |
+
+### Content Customization
+
+You can customize all text in the modal by passing a `content` object. Any fields you don't specify will use the defaults. This uses deep merging, so you can override just the fields you need.
+
+```javascript
+const cookieConsent = new CookieConsent({
+  policyUrl: 'https://yoursite.com/privacy',
+  content: {
+    // Initial view (first screen)
+    initialView: {
+      heading: 'Cookie settings',
+      description: {
+        text: 'We use cookies to enhance your browsing experience, serve personalized content, and analyze our traffic. Read our ',
+        linkText: 'Cookie Policy',
+        suffix: ' to learn more.'
+      },
+      buttons: {
+        customize: 'Customize Cookie Settings',
+        rejectAll: 'Reject All Cookies',
+        acceptAll: 'Accept All Cookies'
+      }
+    },
+    // Settings view (category toggles)
+    settingsView: {
+      heading: 'Cookie settings',
+      description: 'Manage your cookie preferences below. Necessary cookies are required for the website to function and cannot be disabled.',
+      buttons: {
+        save: 'Save Preferences'
+      }
+    },
+    // Category descriptions (names are not customizable)
+    categories: {
+      necessary: 'Enables security and basic functionality.',
+      analytics: 'Enables tracking of site performance.',
+      marketing: 'Enables ads personalization and tracking.'
+    }
+  }
+});
+```
+
+**Partial overrides** - Only specify what you want to change:
+
+```javascript
+const cookieConsent = new CookieConsent({
+  content: {
+    initialView: {
+      heading: 'Privacy Preferences'  // Only change the heading
+    },
+    categories: {
+      analytics: 'Helps us understand how visitors use our site.'
+    }
+  }
+});
+```
 
 ### Methods
 
