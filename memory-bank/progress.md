@@ -62,9 +62,11 @@
 - [ ] Visual regression tests
 
 ### Documentation
-- [ ] Document inline script `type="text/plain"` requirement
-- [ ] API reference documentation
-- [ ] Migration guide from v1
+- [x] GitHub Wiki documentation structure created
+- [x] API reference documentation
+- [x] Migration guide from v1
+- [x] Framework adapter documentation (React, Vue, Svelte)
+- [x] Streamlined README.md with wiki links
 
 ### Potential Improvements
 - [ ] Convert JS implementation to TypeScript
