@@ -24,4 +24,4 @@
 
 ---
 
-**[📦 npm](https://www.npmjs.com/package/cconsent)** · **[🐙 GitHub](https://github.com/your-repo/cconsent)**
+**[📦 npm](https://www.npmjs.com/package/cconsent)** · **[🐙 GitHub](https://github.com/pxdsgnco/cconsent)**

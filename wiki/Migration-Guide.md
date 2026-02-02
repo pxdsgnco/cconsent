@@ -311,7 +311,7 @@ If you need to rollback to v1:
 
 - Check the [Troubleshooting](Troubleshooting) page
 - Review the [API Reference](API-Reference)
-- Open an issue on [GitHub](https://github.com/your-repo/cconsent/issues)
+- Open an issue on [GitHub](https://github.com/pxdsgnco/cconsent/issues)
 
 ## Related Pages
 

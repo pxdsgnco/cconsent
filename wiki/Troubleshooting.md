@@ -435,7 +435,7 @@ console.log(JSON.stringify(state, null, 2));
 If you can't solve your issue:
 
 1. **Check debug output** with `debug: true`
-2. **Search existing issues** on [GitHub](https://github.com/your-repo/cconsent/issues)
+2. **Search existing issues** on [GitHub](https://github.com/pxdsgnco/cconsent/issues)
 3. **Open a new issue** with:
    - cconsent version
    - Browser and version

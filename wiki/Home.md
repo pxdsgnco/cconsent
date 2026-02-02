@@ -57,5 +57,5 @@ cconsent works in all modern browsers:
 ## Need Help?
 
 - 📖 Check the [Troubleshooting](Troubleshooting) guide
-- 🐛 Report issues on [GitHub Issues](https://github.com/your-repo/cconsent/issues)
-- 💬 Ask questions in [GitHub Discussions](https://github.com/your-repo/cconsent/discussions)
+- 🐛 Report issues on [GitHub Issues](https://github.com/pxdsgnco/cconsent/issues)
+- 💬 Ask questions in [GitHub Discussions](https://github.com/pxdsgnco/cconsent/discussions)
