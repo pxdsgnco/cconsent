@@ -20,7 +20,7 @@ yarn add cconsent
 
 ```html
 <link rel="stylesheet" href="https://unpkg.com/cconsent/dist/style.css">
-<script src="https://unpkg.com/cconsent/dist/cookie-consent.umd.js"></script>
+<script src="https://unpkg.com/cconsent/dist/index.umd.js"></script>
 ```
 
 ## Basic Setup
