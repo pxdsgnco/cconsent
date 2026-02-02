@@ -14,6 +14,8 @@ class CookieConsent {
     // Debug mode
     this.debug = options.debug || false;
     this.managedScripts = []; // Track scripts with data-cookie-category
+    this.managedIframes = []; // Track iframes with data-cookie-category
+    this.scriptObserver = null; // MutationObserver for dynamic scripts
     this.debugBadge = null;
 
     // Floating button configuration
@@ -64,9 +66,11 @@ class CookieConsent {
         }
       },
       categories: {
-        necessary: 'Enables security and basic functionality.',
-        analytics: 'Enables tracking of site performance.',
-        marketing: 'Enables ads personalization and tracking.'
+        necessary: 'Required for security and basic functionality.',
+        functional: 'Enables enhanced features like live chat and videos.',
+        preferences: 'Remembers your settings like language and theme.',
+        analytics: 'Helps us understand how visitors use our site.',
+        marketing: 'Enables personalized ads and tracking.'
       }
     };
 
@@ -78,12 +82,59 @@ class CookieConsent {
     this.initialView = null;
     this.settingsView = null;
 
-    // Cookie category states
+    // Cookie category states (5-category model)
     this.categories = {
       necessary: true, // Always true, cannot be toggled
+      functional: false,
+      preferences: false,
       analytics: false,
       marketing: false
     };
+
+    // Legacy mode for backward compatibility with 3-category callbacks
+    this.legacyMode = options.legacyMode || false;
+
+    // Google Consent Mode v2 configuration
+    this.googleConsentMode = this._mergeDeep({
+      enabled: false,
+      waitForUpdate: 500,
+      mapping: {
+        analytics: ['analytics_storage'],
+        marketing: ['ad_storage', 'ad_user_data', 'ad_personalization'],
+        functional: [],
+        preferences: []
+      },
+      adsDataRedaction: true,
+      urlPassthrough: false,
+      regionDefaults: null // Optional region-specific defaults
+    }, options.googleConsentMode || {});
+
+    // Geolocation configuration
+    this.geoConfig = this._mergeDeep({
+      enabled: false,
+      method: 'timezone', // 'timezone' | 'api' | 'header'
+      apiEndpoint: null,  // For 'api' method
+      headerName: 'CF-IPCountry', // For 'header' method (Cloudflare)
+      timeout: 500,
+      cache: true,
+      cacheDuration: 86400000, // 24 hours
+      regions: {
+        gdpr: ['AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE',
+               'GR', 'HU', 'IS', 'IE', 'IT', 'LV', 'LI', 'LT', 'LU', 'MT', 'NL',
+               'NO', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE', 'CH', 'GB'],
+        ccpa: ['US-CA'],
+        lgpd: ['BR']
+      },
+      modeByRegion: {
+        gdpr: 'opt-in',   // Must consent before tracking
+        ccpa: 'opt-out',  // Can track until rejected
+        lgpd: 'opt-in',   // LGPD requires consent
+        default: 'none'   // No consent UI needed
+      }
+    }, options.geo || {});
+
+    this.detectedRegion = null;
+    this.consentMode = 'opt-in'; // Default to strictest mode
 
     // Focus management
     this.triggerElement = null;
@@ -306,6 +357,49 @@ class CookieConsent {
   }
 
   /**
+   * Parse category attribute supporting multiple categories and negation
+   * Supports: "analytics marketing" (OR logic) and "!marketing" (negation)
+   * @param {string} categoryAttr - The data-cookie-category attribute value
+   * @returns {Object} Object with required and excluded arrays
+   */
+  _parseCategories(categoryAttr) {
+    const categories = categoryAttr.trim().split(/\s+/);
+    const required = [];
+    const excluded = [];
+
+    categories.forEach((cat) => {
+      if (cat.startsWith('!')) {
+        excluded.push(cat.slice(1));
+      } else {
+        required.push(cat);
+      }
+    });
+
+    return { required, excluded };
+  }
+
+  /**
+   * Determine if an element should be allowed based on its category attribute
+   * @param {string} categoryAttr - The data-cookie-category attribute value
+   * @returns {boolean} Whether the element should be allowed
+   */
+  _shouldAllowElement(categoryAttr) {
+    const { required, excluded } = this._parseCategories(categoryAttr);
+
+    // Check exclusions first (if any excluded category is allowed, block)
+    for (const cat of excluded) {
+      if (this.isAllowed(cat)) return false;
+    }
+
+    // Check required (if any required category is allowed, allow)
+    for (const cat of required) {
+      if (this.isAllowed(cat)) return true;
+    }
+
+    return required.length === 0; // If only exclusions and none matched, allow
+  }
+
+  /**
    * Scan the document for scripts with data-cookie-category attribute
    */
   _scanScripts() {
@@ -313,6 +407,9 @@ class CookieConsent {
     this.managedScripts = [];
 
     scripts.forEach((script) => {
+      // Skip already loaded scripts
+      if (script.hasAttribute('data-cconsent-loaded')) return;
+
       const category = script.getAttribute('data-cookie-category');
       const originalSrc = script.getAttribute('src') || null;
       const inlineContent = script.textContent || null;
@@ -334,11 +431,149 @@ class CookieConsent {
   }
 
   /**
-   * Evaluate all managed scripts based on current consent
+   * Scan the document for iframes with data-cookie-category attribute
+   */
+  _scanIframes() {
+    const iframes = document.querySelectorAll('iframe[data-cookie-category]');
+    this.managedIframes = [];
+
+    iframes.forEach((iframe) => {
+      // Skip already processed iframes
+      if (iframe.hasAttribute('data-cconsent-processed')) return;
+
+      const category = iframe.getAttribute('data-cookie-category');
+      const originalSrc = iframe.getAttribute('data-src') || iframe.getAttribute('src') || null;
+
+      const managedIframe = {
+        element: iframe,
+        category: category,
+        originalSrc: originalSrc,
+        blocked: false,
+        placeholder: null
+      };
+
+      this.managedIframes.push(managedIframe);
+      iframe.setAttribute('data-cconsent-processed', 'true');
+      this._log(`Found iframe: ${originalSrc || '[no src]'} (category: ${category})`);
+    });
+
+    this._log(`Total managed iframes: ${this.managedIframes.length}`);
+  }
+
+  /**
+   * Initialize MutationObserver to watch for dynamically added scripts and iframes
+   */
+  _initScriptObserver() {
+    if (this.scriptObserver) return;
+
+    this.scriptObserver = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+          if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+          // Check if the added node itself is a script or iframe
+          if (node.nodeName === 'SCRIPT' && node.hasAttribute('data-cookie-category')) {
+            this._processNewScript(node);
+          }
+          if (node.nodeName === 'IFRAME' && node.hasAttribute('data-cookie-category')) {
+            this._processNewIframe(node);
+          }
+
+          // Check children of added nodes
+          if (node.querySelectorAll) {
+            const scripts = node.querySelectorAll('script[data-cookie-category]');
+            scripts.forEach((script) => this._processNewScript(script));
+
+            const iframes = node.querySelectorAll('iframe[data-cookie-category]');
+            iframes.forEach((iframe) => this._processNewIframe(iframe));
+          }
+        });
+      });
+    });
+
+    this.scriptObserver.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    this._log('MutationObserver initialized for dynamic script/iframe detection');
+  }
+
+  /**
+   * Process a dynamically added script
+   * @param {HTMLScriptElement} script - The script element
+   */
+  _processNewScript(script) {
+    // Skip already processed scripts
+    if (script.hasAttribute('data-cconsent-loaded')) return;
+
+    const category = script.getAttribute('data-cookie-category');
+    const originalSrc = script.getAttribute('src') || null;
+    const inlineContent = script.textContent || null;
+
+    const managedScript = {
+      element: script,
+      category: category,
+      originalSrc: originalSrc,
+      inlineContent: inlineContent,
+      blocked: false,
+      executed: false
+    };
+
+    this.managedScripts.push(managedScript);
+    this._log(`Dynamic script detected: ${originalSrc || '[inline]'} (category: ${category})`);
+
+    // Evaluate immediately
+    const isAllowed = this._shouldAllowElement(category);
+    if (isAllowed) {
+      this._allowScript(managedScript);
+    } else {
+      this._blockScript(managedScript);
+    }
+
+    this._updateDebugBadge();
+  }
+
+  /**
+   * Process a dynamically added iframe
+   * @param {HTMLIFrameElement} iframe - The iframe element
+   */
+  _processNewIframe(iframe) {
+    // Skip already processed iframes
+    if (iframe.hasAttribute('data-cconsent-processed')) return;
+
+    const category = iframe.getAttribute('data-cookie-category');
+    const originalSrc = iframe.getAttribute('data-src') || iframe.getAttribute('src') || null;
+
+    const managedIframe = {
+      element: iframe,
+      category: category,
+      originalSrc: originalSrc,
+      blocked: false,
+      placeholder: null
+    };
+
+    this.managedIframes.push(managedIframe);
+    iframe.setAttribute('data-cconsent-processed', 'true');
+    this._log(`Dynamic iframe detected: ${originalSrc || '[no src]'} (category: ${category})`);
+
+    // Evaluate immediately
+    const isAllowed = this._shouldAllowElement(category);
+    if (isAllowed) {
+      this._allowIframe(managedIframe);
+    } else {
+      this._blockIframe(managedIframe);
+    }
+
+    this._updateDebugBadge();
+  }
+
+  /**
+   * Evaluate all managed scripts and iframes based on current consent
    */
   _evaluateScripts() {
     this.managedScripts.forEach((script) => {
-      const isAllowed = this.isAllowed(script.category);
+      const isAllowed = this._shouldAllowElement(script.category);
 
       if (isAllowed && !script.executed) {
         this._allowScript(script);
@@ -347,7 +582,23 @@ class CookieConsent {
       }
     });
 
+    this._evaluateIframes();
     this._updateDebugBadge();
+  }
+
+  /**
+   * Evaluate all managed iframes based on current consent
+   */
+  _evaluateIframes() {
+    this.managedIframes.forEach((iframe) => {
+      const isAllowed = this._shouldAllowElement(iframe.category);
+
+      if (isAllowed && iframe.blocked) {
+        this._allowIframe(iframe);
+      } else if (!isAllowed && !iframe.blocked) {
+        this._blockIframe(iframe);
+      }
+    });
   }
 
   /**
@@ -406,6 +657,124 @@ class CookieConsent {
   }
 
   /**
+   * Block an iframe from loading
+   * @param {Object} managed - Managed iframe object
+   */
+  _blockIframe(managed) {
+    const iframe = managed.element;
+
+    // Store original src in data attribute if not already stored
+    if (!iframe.hasAttribute('data-src') && managed.originalSrc) {
+      iframe.setAttribute('data-src', managed.originalSrc);
+    }
+
+    // Remove src to prevent loading
+    iframe.removeAttribute('src');
+    iframe.classList.add('cc-blocked');
+
+    // Create placeholder
+    managed.placeholder = this._createPlaceholder(iframe, managed.category);
+    managed.blocked = true;
+
+    this._log(`Iframe blocked: ${managed.originalSrc || '[no src]'} (${managed.category})`, null, 'warn');
+  }
+
+  /**
+   * Allow an iframe to load
+   * @param {Object} managed - Managed iframe object
+   */
+  _allowIframe(managed) {
+    const iframe = managed.element;
+
+    // Restore src
+    if (managed.originalSrc) {
+      iframe.setAttribute('src', managed.originalSrc);
+    }
+
+    iframe.classList.remove('cc-blocked');
+
+    // Remove placeholder
+    if (managed.placeholder) {
+      managed.placeholder.remove();
+      managed.placeholder = null;
+    }
+
+    // Show iframe
+    iframe.style.display = '';
+    managed.blocked = false;
+
+    this._log(`Iframe allowed: ${managed.originalSrc || '[no src]'} (${managed.category})`, null, 'success');
+  }
+
+  /**
+   * Create a placeholder element for blocked content
+   * @param {HTMLElement} element - The element being blocked
+   * @param {string} category - The cookie category
+   * @returns {HTMLElement} The placeholder element
+   */
+  _createPlaceholder(element, category) {
+    const placeholder = this._createElement('div', {
+      className: 'cc-blocked-placeholder'
+    });
+
+    // Get display name for category
+    const categoryName = category.charAt(0).toUpperCase() + category.slice(1);
+
+    const content = this._createElement('div', {
+      className: 'cc-blocked-placeholder-content'
+    });
+
+    const icon = this._createElement('span', {
+      className: 'cc-blocked-placeholder-icon',
+      textContent: '🔒'
+    });
+
+    const text = this._createElement('span', {
+      className: 'cc-blocked-placeholder-text',
+      textContent: `${categoryName} content is blocked. `
+    });
+
+    const link = this._createElement('a', {
+      className: 'cc-blocked-placeholder-link',
+      href: '#',
+      textContent: 'Change settings'
+    });
+
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (!this.modal) {
+        this._createModal();
+      }
+      this.show();
+      requestAnimationFrame(() => {
+        this.showSettings();
+      });
+    });
+
+    content.appendChild(icon);
+    content.appendChild(text);
+    content.appendChild(link);
+    placeholder.appendChild(content);
+
+    // Copy dimensions from original element if available
+    const computedStyle = window.getComputedStyle(element);
+    if (element.offsetWidth > 0) {
+      placeholder.style.width = computedStyle.width;
+    }
+    if (element.offsetHeight > 0) {
+      placeholder.style.height = computedStyle.height;
+    } else {
+      placeholder.style.minHeight = '150px';
+    }
+
+    // Insert placeholder and hide original element
+    element.parentNode.insertBefore(placeholder, element);
+    element.style.display = 'none';
+
+    return placeholder;
+  }
+
+  /**
    * Export debug information
    * @returns {Object} Debug state snapshot
    */
@@ -418,6 +787,17 @@ class CookieConsent {
         category: s.category,
         status: s.executed ? 'allowed' : (s.blocked ? 'blocked' : 'pending')
       })),
+      iframes: this.managedIframes.map((i) => ({
+        src: i.originalSrc || '[no src]',
+        category: i.category,
+        status: i.blocked ? 'blocked' : 'allowed'
+      })),
+      geo: {
+        enabled: this.geoConfig.enabled,
+        detectedRegion: this.detectedRegion,
+        consentMode: this.consentMode
+      },
+      googleConsentMode: this.googleConsentMode.enabled,
       timestamp: new Date().toISOString(),
       storageKey: this.storageKey,
       storageMethod: this.storageMethod,
@@ -461,15 +841,48 @@ class CookieConsent {
    * Initialize the cookie consent dialog
    * Shows the dialog if no consent has been given
    */
-  init() {
+  async init() {
     this._log('Initializing cookie consent...');
     this._log('Storage method: ' + this.storageMethod);
 
     // Migrate storage if needed (localStorage -> cookies)
     this._migrateStorage();
 
-    // Scan for scripts with data-cookie-category
+    // Geo detection (if enabled)
+    if (this.geoConfig.enabled) {
+      await this._detectRegion();
+
+      // If no consent needed for this region, skip UI entirely
+      if (this.consentMode === 'none') {
+        this._log('No consent required for region: ' + this.detectedRegion, null, 'success');
+        // Allow all categories silently
+        this.categories = {
+          necessary: true,
+          functional: true,
+          preferences: true,
+          analytics: true,
+          marketing: true
+        };
+        this._initGoogleConsentMode();
+        this._updateGoogleConsent();
+        this._scanScripts();
+        this._scanIframes();
+        this._initScriptObserver();
+        this._evaluateScripts();
+        this._exposeGlobalAPI();
+        return;
+      }
+    }
+
+    // Initialize Google Consent Mode defaults (must be early, before any tracking)
+    this._initGoogleConsentMode();
+
+    // Scan for scripts and iframes with data-cookie-category
     this._scanScripts();
+    this._scanIframes();
+
+    // Initialize MutationObserver for dynamic scripts/iframes
+    this._initScriptObserver();
 
     // Expose global API
     this._exposeGlobalAPI();
@@ -480,13 +893,18 @@ class CookieConsent {
     // Check if consent already exists
     const existingConsent = this.getConsent();
     if (existingConsent) {
-      // Load existing preferences
+      // Load existing preferences (5-category model)
       this.categories = {
         necessary: true,
+        functional: existingConsent.functional || false,
+        preferences: existingConsent.preferences || false,
         analytics: existingConsent.analytics || false,
         marketing: existingConsent.marketing || false
       };
       this._log('Existing consent found:', this.categories, 'success');
+
+      // Update Google Consent Mode with existing consent
+      this._updateGoogleConsent();
 
       // Evaluate scripts based on existing consent
       this._evaluateScripts();
@@ -830,8 +1248,14 @@ class CookieConsent {
 
     // Button row
     const buttonRow = this._createElement('div', { className: 'cc-buttons-row' });
+
+    // Use CCPA-specific text for opt-out regions
+    const rejectText = this.consentMode === 'opt-out'
+      ? 'Do Not Sell My Info'
+      : this.content.initialView.buttons.rejectAll;
+
     buttonRow.appendChild(this._createButton(
-      this.content.initialView.buttons.rejectAll,
+      rejectText,
       'reject',
       'cc-btn-outline'
     ));
@@ -868,7 +1292,7 @@ class CookieConsent {
       textContent: this.content.settingsView.description
     }));
 
-    // Categories
+    // Categories (5-category model)
     const categories = this._createElement('div', { className: 'cc-categories' });
     categories.appendChild(this._createCategoryCard(
       'Necessary',
@@ -876,6 +1300,20 @@ class CookieConsent {
       'cc-necessary',
       'necessary',
       true
+    ));
+    categories.appendChild(this._createCategoryCard(
+      'Functional',
+      this.content.categories.functional,
+      'cc-functional',
+      'functional',
+      false
+    ));
+    categories.appendChild(this._createCategoryCard(
+      'Preferences',
+      this.content.categories.preferences,
+      'cc-preferences',
+      'preferences',
+      false
     ));
     categories.appendChild(this._createCategoryCard(
       'Analytics',
@@ -1051,10 +1489,10 @@ class CookieConsent {
     // Content container
     const content = this._createElement('div', { className: 'cc-debug-content' });
 
-    // Consent status rows
+    // Consent status rows (5-category model)
     const statusContainer = this._createElement('div', { className: 'cc-debug-status' });
 
-    ['necessary', 'analytics', 'marketing'].forEach((category) => {
+    ['necessary', 'functional', 'preferences', 'analytics', 'marketing'].forEach((category) => {
       const row = this._createElement('div', { className: 'cc-debug-row' });
       const label = this._createElement('span', {
         className: 'cc-debug-label',
@@ -1075,7 +1513,7 @@ class CookieConsent {
     const scriptsSection = this._createElement('div', { className: 'cc-debug-scripts' });
     const scriptsHeader = this._createElement('div', {
       className: 'cc-debug-scripts-header',
-      textContent: 'Managed Scripts'
+      textContent: 'Managed Scripts & Iframes'
     });
     const scriptsCount = this._createElement('span', { className: 'cc-debug-scripts-count' });
     scriptsHeader.appendChild(scriptsCount);
@@ -1105,12 +1543,15 @@ class CookieConsent {
       this._log('Debug: Randomizing consent');
       this.categories = {
         necessary: true,
+        functional: Math.random() > 0.5,
+        preferences: Math.random() > 0.5,
         analytics: Math.random() > 0.5,
         marketing: Math.random() > 0.5
       };
       this._saveToStorage();
       this._evaluateScripts();
       this._updateDebugBadge();
+      this._updateFloatingButton();
       this._log('Randomized consent:', this.categories);
     });
 
@@ -1152,8 +1593,8 @@ class CookieConsent {
 
     const consent = this.getConsent();
 
-    // Update category status
-    ['necessary', 'analytics', 'marketing'].forEach((category) => {
+    // Update category status (5-category model)
+    ['necessary', 'functional', 'preferences', 'analytics', 'marketing'].forEach((category) => {
       const el = this.debugBadge.querySelector(`[data-debug-category="${category}"]`);
       if (el) {
         const isAllowed = consent ? consent[category] : (category === 'necessary');
@@ -1172,13 +1613,16 @@ class CookieConsent {
         table.removeChild(table.firstChild);
       }
 
-      if (this.managedScripts.length === 0) {
+      const allManaged = [...this.managedScripts, ...this.managedIframes];
+
+      if (allManaged.length === 0) {
         const emptyRow = this._createElement('div', {
           className: 'cc-debug-table-empty',
-          textContent: 'No managed scripts found'
+          textContent: 'No managed scripts or iframes found'
         });
         table.appendChild(emptyRow);
       } else {
+        // Add scripts
         this.managedScripts.forEach((script) => {
           const row = this._createElement('div', { className: 'cc-debug-table-row' });
 
@@ -1212,12 +1656,47 @@ class CookieConsent {
           row.appendChild(statusCell);
           table.appendChild(row);
         });
+
+        // Add iframes
+        this.managedIframes.forEach((iframe) => {
+          const row = this._createElement('div', { className: 'cc-debug-table-row' });
+
+          const srcCell = this._createElement('span', {
+            className: 'cc-debug-table-src',
+            textContent: iframe.originalSrc ? '📺 ' + iframe.originalSrc.split('/').pop() : '📺 [no src]'
+          });
+          srcCell.title = iframe.originalSrc || 'Iframe';
+
+          const categoryCell = this._createElement('span', {
+            className: 'cc-debug-table-category',
+            textContent: iframe.category
+          });
+
+          const statusCell = this._createElement('span', {
+            className: 'cc-debug-table-status'
+          });
+
+          if (iframe.blocked) {
+            statusCell.textContent = '🔴 Blocked';
+            statusCell.classList.add('cc-debug-denied');
+          } else {
+            statusCell.textContent = '🟢 Loaded';
+            statusCell.classList.add('cc-debug-allowed');
+          }
+
+          row.appendChild(srcCell);
+          row.appendChild(categoryCell);
+          row.appendChild(statusCell);
+          table.appendChild(row);
+        });
       }
     }
 
     if (count) {
-      const blockedCount = this.managedScripts.filter((s) => s.blocked && !s.executed).length;
-      count.textContent = blockedCount > 0 ? ` (${blockedCount} blocked)` : '';
+      const blockedScripts = this.managedScripts.filter((s) => s.blocked && !s.executed).length;
+      const blockedIframes = this.managedIframes.filter((i) => i.blocked).length;
+      const totalBlocked = blockedScripts + blockedIframes;
+      count.textContent = totalBlocked > 0 ? ` (${totalBlocked} blocked)` : '';
     }
   }
 
@@ -1229,23 +1708,25 @@ class CookieConsent {
     const consent = this.getConsent();
     if (!consent) return 'essential';
 
-    const analytics = consent.analytics === true;
-    const marketing = consent.marketing === true;
+    const optional = ['functional', 'preferences', 'analytics', 'marketing'];
+    const allowed = optional.filter((cat) => consent[cat] === true);
 
-    if (analytics && marketing) return 'all';
-    if (analytics || marketing) return 'partial';
+    if (allowed.length === optional.length) return 'all';
+    if (allowed.length > 0) return 'partial';
     return 'essential';
   }
 
   /**
    * Get the count of active cookie categories
-   * @returns {number} Number of active categories (1-3)
+   * @returns {number} Number of active categories (1-5)
    */
   _getActiveCategoryCount() {
     const consent = this.getConsent();
     if (!consent) return 1; // Only necessary
 
     let count = 1; // Necessary is always active
+    if (consent.functional) count++;
+    if (consent.preferences) count++;
     if (consent.analytics) count++;
     if (consent.marketing) count++;
     return count;
@@ -1294,7 +1775,7 @@ class CookieConsent {
     button.style.setProperty('--cc-floating-offset-y', `${config.offset.y}px`);
 
     // Accessibility attributes
-    button.setAttribute('aria-label', `${config.label}, currently accepting ${activeCount} of 3 categories`);
+    button.setAttribute('aria-label', `${config.label}, currently accepting ${activeCount} of 5 categories`);
     button.setAttribute('title', config.label);
 
     // Icon container
@@ -1345,7 +1826,7 @@ class CookieConsent {
     // Update aria-label
     this.floatingButton.setAttribute(
       'aria-label',
-      `${this.floatingButtonConfig.label}, currently accepting ${activeCount} of 3 categories`
+      `${this.floatingButtonConfig.label}, currently accepting ${activeCount} of 5 categories`
     );
 
     this._log('Floating button updated', { status, activeCount });
@@ -1447,6 +1928,51 @@ class CookieConsent {
        */
       getStatus: () => {
         return self._getConsentStatus();
+      },
+
+      /**
+       * Re-scan the DOM for scripts and iframes with data-cookie-category
+       * Useful after dynamically adding new elements
+       */
+      scanScripts: () => {
+        self._scanScripts();
+        self._scanIframes();
+        self._evaluateScripts();
+      },
+
+      /**
+       * Check if an element would run based on its data-cookie-category
+       * @param {HTMLElement} element - The element to check
+       * @returns {boolean} Whether the element would be allowed
+       */
+      wouldRunScript: (element) => {
+        const category = element.getAttribute('data-cookie-category');
+        if (!category) return true;
+        return self._shouldAllowElement(category);
+      },
+
+      /**
+       * Get all managed scripts and their status
+       * @returns {Array} Array of script info objects
+       */
+      getManagedScripts: () => {
+        return self.managedScripts.map((s) => ({
+          src: s.originalSrc || '[inline]',
+          category: s.category,
+          status: s.executed ? 'allowed' : (s.blocked ? 'blocked' : 'pending')
+        }));
+      },
+
+      /**
+       * Get all managed iframes and their status
+       * @returns {Array} Array of iframe info objects
+       */
+      getManagedIframes: () => {
+        return self.managedIframes.map((i) => ({
+          src: i.originalSrc || '[no src]',
+          category: i.category,
+          status: i.blocked ? 'blocked' : 'allowed'
+        }));
       }
     };
 
@@ -1590,6 +2116,336 @@ class CookieConsent {
   }
 
   /**
+   * Get categories for callbacks, with optional legacy mode transformation
+   * @returns {Object} Category object (5-category or 3-category in legacy mode)
+   */
+  _getCallbackCategories() {
+    if (this.legacyMode) {
+      // Map 5 categories to 3 for backward compatibility
+      return {
+        necessary: this.categories.necessary,
+        analytics: this.categories.functional || this.categories.preferences || this.categories.analytics,
+        marketing: this.categories.marketing
+      };
+    }
+    return { ...this.categories };
+  }
+
+  /**
+   * Initialize Google Consent Mode v2 with default denied state
+   */
+  _initGoogleConsentMode() {
+    if (!this.googleConsentMode.enabled) return;
+
+    // Ensure dataLayer exists
+    window.dataLayer = window.dataLayer || [];
+
+    // Define gtag function if not already defined
+    if (typeof window.gtag !== 'function') {
+      window.gtag = function() {
+        window.dataLayer.push(arguments);
+      };
+    }
+
+    // Set default denied state for all consent signals
+    const defaults = {
+      'ad_storage': 'denied',
+      'analytics_storage': 'denied',
+      'ad_user_data': 'denied',
+      'ad_personalization': 'denied',
+      'wait_for_update': this.googleConsentMode.waitForUpdate
+    };
+
+    window.gtag('consent', 'default', defaults);
+
+    // Set additional settings
+    if (this.googleConsentMode.adsDataRedaction) {
+      window.gtag('set', 'ads_data_redaction', true);
+    }
+
+    if (this.googleConsentMode.urlPassthrough) {
+      window.gtag('set', 'url_passthrough', true);
+    }
+
+    // Apply region-specific defaults if configured
+    this._initRegionDefaults();
+
+    this._log('Google Consent Mode initialized with defaults', defaults);
+  }
+
+  /**
+   * Initialize region-specific consent defaults
+   */
+  _initRegionDefaults() {
+    if (!this.googleConsentMode.regionDefaults) return;
+
+    Object.entries(this.googleConsentMode.regionDefaults).forEach(([region, defaults]) => {
+      window.gtag('consent', 'default', {
+        ...defaults,
+        'region': Array.isArray(region) ? region : [region]
+      });
+    });
+
+    this._log('Region-specific defaults applied', this.googleConsentMode.regionDefaults);
+  }
+
+  /**
+   * Update Google Consent Mode based on current consent state
+   */
+  _updateGoogleConsent() {
+    if (!this.googleConsentMode.enabled) return;
+
+    const mapping = this.googleConsentMode.mapping;
+    const consent = {};
+
+    // Build consent object from category mapping
+    Object.entries(mapping).forEach(([category, signals]) => {
+      const allowed = this.categories[category] ? 'granted' : 'denied';
+      signals.forEach((signal) => {
+        consent[signal] = allowed;
+      });
+    });
+
+    // Ensure all 4 required signals are present with at least denied state
+    const required = ['ad_storage', 'analytics_storage', 'ad_user_data', 'ad_personalization'];
+    required.forEach((signal) => {
+      if (!consent[signal]) {
+        consent[signal] = 'denied';
+      }
+    });
+
+    window.gtag('consent', 'update', consent);
+
+    // Push event to dataLayer for GTM
+    window.dataLayer.push({
+      'event': 'cookie_consent_update',
+      'cookie_consent': {
+        necessary: true,
+        functional: this.categories.functional,
+        preferences: this.categories.preferences,
+        analytics: this.categories.analytics,
+        marketing: this.categories.marketing
+      }
+    });
+
+    this._log('Google Consent Mode updated', consent, 'success');
+  }
+
+  /**
+   * Detect region using timezone
+   * @returns {string|null} Country code or null
+   */
+  _detectRegionByTimezone() {
+    try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+      // Timezone to country mapping
+      const tzToCountry = {
+        // Europe (GDPR)
+        'Europe/London': 'GB',
+        'Europe/Paris': 'FR',
+        'Europe/Berlin': 'DE',
+        'Europe/Madrid': 'ES',
+        'Europe/Rome': 'IT',
+        'Europe/Amsterdam': 'NL',
+        'Europe/Brussels': 'BE',
+        'Europe/Vienna': 'AT',
+        'Europe/Warsaw': 'PL',
+        'Europe/Prague': 'CZ',
+        'Europe/Stockholm': 'SE',
+        'Europe/Oslo': 'NO',
+        'Europe/Helsinki': 'FI',
+        'Europe/Dublin': 'IE',
+        'Europe/Lisbon': 'PT',
+        'Europe/Athens': 'GR',
+        'Europe/Budapest': 'HU',
+        'Europe/Bucharest': 'RO',
+        'Europe/Sofia': 'BG',
+        'Europe/Copenhagen': 'DK',
+        'Europe/Zurich': 'CH',
+        'Europe/Luxembourg': 'LU',
+        'Europe/Monaco': 'MC',
+        'Europe/Malta': 'MT',
+        'Europe/Riga': 'LV',
+        'Europe/Tallinn': 'EE',
+        'Europe/Vilnius': 'LT',
+        'Europe/Ljubljana': 'SI',
+        'Europe/Zagreb': 'HR',
+        'Europe/Bratislava': 'SK',
+        'Atlantic/Reykjavik': 'IS',
+        // US
+        'America/Los_Angeles': 'US-CA',
+        'America/New_York': 'US',
+        'America/Chicago': 'US',
+        'America/Denver': 'US',
+        'America/Phoenix': 'US',
+        'America/Anchorage': 'US',
+        'Pacific/Honolulu': 'US',
+        // Brazil (LGPD)
+        'America/Sao_Paulo': 'BR',
+        'America/Rio_Branco': 'BR',
+        'America/Manaus': 'BR',
+        'America/Belem': 'BR',
+        // Other regions
+        'Asia/Tokyo': 'JP',
+        'Asia/Shanghai': 'CN',
+        'Asia/Hong_Kong': 'HK',
+        'Asia/Singapore': 'SG',
+        'Asia/Seoul': 'KR',
+        'Australia/Sydney': 'AU',
+        'Australia/Melbourne': 'AU',
+        'Pacific/Auckland': 'NZ'
+      };
+
+      const country = tzToCountry[timezone] || null;
+      this._log('Timezone detection:', { timezone, country });
+      return country;
+    } catch (e) {
+      this._log('Timezone detection failed', e, 'warn');
+      return null;
+    }
+  }
+
+  /**
+   * Detect region using API
+   * @returns {Promise<string|null>} Country code or null
+   */
+  async _detectRegionByAPI() {
+    if (!this.geoConfig.apiEndpoint) return null;
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.geoConfig.timeout);
+
+      const response = await fetch(this.geoConfig.apiEndpoint, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      const data = await response.json();
+      const country = data.country || data.countryCode || data.country_code || null;
+      this._log('API detection:', { endpoint: this.geoConfig.apiEndpoint, country });
+      return country;
+    } catch (e) {
+      this._log('Geo API detection failed', e, 'warn');
+      return null;
+    }
+  }
+
+  /**
+   * Detect region using header (injected server-side)
+   * @returns {string|null} Country code or null
+   */
+  _detectRegionByHeader() {
+    // Headers must be injected server-side via meta tag
+    const meta = document.querySelector('meta[name="user-country"]');
+    const country = meta?.content || null;
+    this._log('Header detection:', { country });
+    return country;
+  }
+
+  /**
+   * Get cached geo data
+   * @returns {string|null} Cached country code or null
+   */
+  _getCachedGeo() {
+    if (!this.geoConfig.cache) return null;
+
+    try {
+      const cached = localStorage.getItem('cc_geo_cache');
+      if (!cached) return null;
+
+      const { country, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp > this.geoConfig.cacheDuration) {
+        localStorage.removeItem('cc_geo_cache');
+        return null;
+      }
+
+      this._log('Using cached geo:', { country });
+      return country;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * Set cached geo data
+   * @param {string} country - Country code to cache
+   */
+  _setCachedGeo(country) {
+    if (!this.geoConfig.cache) return;
+
+    try {
+      localStorage.setItem('cc_geo_cache', JSON.stringify({
+        country,
+        timestamp: Date.now()
+      }));
+    } catch (e) {
+      // Storage quota exceeded, ignore
+    }
+  }
+
+  /**
+   * Classify a country into a region type
+   * @param {string} countryCode - The country code
+   * @returns {string} Region type: 'gdpr', 'ccpa', 'lgpd', or 'default'
+   */
+  _classifyRegion(countryCode) {
+    if (!countryCode) return 'default';
+
+    const { regions } = this.geoConfig;
+
+    if (regions.gdpr.includes(countryCode)) return 'gdpr';
+    if (regions.ccpa.includes(countryCode)) return 'ccpa';
+    if (regions.lgpd.includes(countryCode)) return 'lgpd';
+
+    return 'default';
+  }
+
+  /**
+   * Get consent mode for a region type
+   * @param {string} regionType - The region type
+   * @returns {string} Consent mode: 'opt-in', 'opt-out', or 'none'
+   */
+  _getConsentModeForRegion(regionType) {
+    return this.geoConfig.modeByRegion[regionType] || 'opt-in';
+  }
+
+  /**
+   * Detect user's region and set consent mode
+   * @returns {Promise<void>}
+   */
+  async _detectRegion() {
+    // Check cache first
+    let country = this._getCachedGeo();
+
+    if (!country) {
+      // Try detection methods
+      switch (this.geoConfig.method) {
+        case 'timezone':
+          country = this._detectRegionByTimezone();
+          break;
+        case 'api':
+          country = await this._detectRegionByAPI();
+          break;
+        case 'header':
+          country = this._detectRegionByHeader();
+          break;
+      }
+
+      if (country) {
+        this._setCachedGeo(country);
+      }
+    }
+
+    this.detectedRegion = country;
+    const regionType = this._classifyRegion(country);
+    this.consentMode = this._getConsentModeForRegion(regionType);
+
+    this._log('Region detected:', { country, regionType, mode: this.consentMode });
+  }
+
+  /**
    * Accept all cookies
    */
   async acceptAll() {
@@ -1598,12 +2454,15 @@ class CookieConsent {
 
     this.categories = {
       necessary: true,
+      functional: true,
+      preferences: true,
       analytics: true,
       marketing: true
     };
 
     this._log('All cookies accepted', this.categories, 'success');
     this._saveToStorage();
+    this._updateGoogleConsent();
     this._evaluateScripts();
     this._updateDebugBadge();
     this._announce('Cookie preferences saved. All cookies accepted.');
@@ -1615,7 +2474,7 @@ class CookieConsent {
       this._updateFloatingButton();
     }
 
-    await this._executeCallback(this.onAccept, this.categories);
+    await this._executeCallback(this.onAccept, this._getCallbackCategories());
 
     this._setButtonLoading(button, false);
     this.hide();
@@ -1630,12 +2489,15 @@ class CookieConsent {
 
     this.categories = {
       necessary: true,
+      functional: false,
+      preferences: false,
       analytics: false,
       marketing: false
     };
 
     this._log('Non-essential cookies rejected', this.categories, 'warn');
     this._saveToStorage();
+    this._updateGoogleConsent();
     this._evaluateScripts();
     this._updateDebugBadge();
     this._announce('Cookie preferences saved. Non-essential cookies rejected.');
@@ -1647,7 +2509,7 @@ class CookieConsent {
       this._updateFloatingButton();
     }
 
-    await this._executeCallback(this.onReject, this.categories);
+    await this._executeCallback(this.onReject, this._getCallbackCategories());
 
     this._setButtonLoading(button, false);
     this.hide();
@@ -1668,6 +2530,7 @@ class CookieConsent {
 
     this._log('Preferences saved', this.categories, 'success');
     this._saveToStorage();
+    this._updateGoogleConsent();
     this._evaluateScripts();
     this._updateDebugBadge();
     this._announce('Cookie preferences saved.');
@@ -1679,7 +2542,7 @@ class CookieConsent {
       this._updateFloatingButton();
     }
 
-    await this._executeCallback(this.onSave, this.categories);
+    await this._executeCallback(this.onSave, this._getCallbackCategories());
 
     this._setButtonLoading(button, false);
     this.hide();
@@ -1695,7 +2558,10 @@ class CookieConsent {
     }
 
     const consent = {
+      version: '2.0', // Version for migration support
       necessary: this.categories.necessary,
+      functional: this.categories.functional,
+      preferences: this.categories.preferences,
       analytics: this.categories.analytics,
       marketing: this.categories.marketing,
       timestamp: new Date().toISOString()
@@ -1721,6 +2587,31 @@ class CookieConsent {
   }
 
   /**
+   * Migrate consent from v1 (3 categories) to v2 (5 categories)
+   * @param {Object} oldConsent - The v1 consent object
+   * @returns {Object} The migrated v2 consent object
+   */
+  _migrateConsentV1toV2(oldConsent) {
+    const migrated = {
+      version: '2.0',
+      necessary: true,
+      functional: false,  // Default to false for new categories
+      preferences: false,
+      analytics: oldConsent.analytics || false,
+      marketing: oldConsent.marketing || false,
+      timestamp: oldConsent.timestamp || new Date().toISOString()
+    };
+
+    // Preserve consent ID if present
+    if (oldConsent.consentId) {
+      migrated.consentId = oldConsent.consentId;
+    }
+
+    this._log('Migrated consent from v1 to v2', migrated);
+    return migrated;
+  }
+
+  /**
    * Get current consent from storage (localStorage or cookie)
    * @returns {Object|null} Consent object or null if not found
    */
@@ -1735,11 +2626,25 @@ class CookieConsent {
 
       if (!stored) return null;
 
-      const consent = this._decodeData(stored);
+      let consent = this._decodeData(stored);
 
       // Store consent ID if present
       if (consent && consent.consentId) {
         this.consentId = consent.consentId;
+      }
+
+      // Check version and migrate if needed (v1 had no version field)
+      if (consent && !consent.version) {
+        consent = this._migrateConsentV1toV2(consent);
+        // Persist the migrated consent
+        this.categories = {
+          necessary: true,
+          functional: consent.functional,
+          preferences: consent.preferences,
+          analytics: consent.analytics,
+          marketing: consent.marketing
+        };
+        this._saveToStorage();
       }
 
       return consent;
@@ -1765,6 +2670,8 @@ class CookieConsent {
 
     this.categories = {
       necessary: true,
+      functional: false,
+      preferences: false,
       analytics: false,
       marketing: false
     };

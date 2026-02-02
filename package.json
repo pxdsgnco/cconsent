@@ -1,0 +1,83 @@
+{
+  "name": "cconsent",
+  "version": "2.0.0",
+  "description": "Lightweight GDPR-compliant cookie consent dialog with Google Consent Mode v2 support",
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    },
+    "./core": {
+      "import": "./dist/core.mjs",
+      "require": "./dist/core.cjs",
+      "types": "./dist/core.d.ts"
+    },
+    "./style.css": "./dist/style.css"
+  },
+  "sideEffects": [
+    "*.css"
+  ],
+  "files": [
+    "dist",
+    "legacy"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c -w",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "size": "size-limit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "cookie",
+    "consent",
+    "gdpr",
+    "ccpa",
+    "lgpd",
+    "privacy",
+    "google-consent-mode",
+    "cookie-banner",
+    "cookie-dialog"
+  ],
+  "author": "pxdsgnco",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pxdsgnco/cconsent.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pxdsgnco/cconsent/issues"
+  },
+  "homepage": "https://github.com/pxdsgnco/cconsent#readme",
+  "devDependencies": {
+    "@rollup/plugin-typescript": "^11.0.0",
+    "@types/node": "^20.0.0",
+    "rollup": "^4.0.0",
+    "rollup-plugin-css-only": "^4.0.0",
+    "@rollup/plugin-terser": "^0.4.0",
+    "typescript": "^5.0.0",
+    "eslint": "^8.0.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "prettier": "^3.0.0",
+    "@size-limit/preset-small-lib": "^11.0.0",
+    "size-limit": "^11.0.0",
+    "vitest": "^1.0.0"
+  },
+  "size-limit": [
+    {
+      "path": "dist/index.mjs",
+      "limit": "15 KB"
+    }
+  ],
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

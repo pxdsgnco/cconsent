@@ -951,3 +951,78 @@
     transition: none;
   }
 }
+
+/* ============================================
+   Blocked Content Placeholder
+   ============================================ */
+.cc-blocked-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--cc-surface-secondary);
+  border: 1px dashed var(--cc-border-default);
+  border-radius: var(--cc-card-radius);
+  padding: 20px;
+  text-align: center;
+  color: var(--cc-text-muted);
+  font-family: var(--cc-font-family);
+  font-size: 14px;
+  min-height: 150px;
+  box-sizing: border-box;
+}
+
+.cc-blocked-placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.cc-blocked-placeholder-icon {
+  font-size: 24px;
+  opacity: 0.7;
+}
+
+.cc-blocked-placeholder-text {
+  color: var(--cc-text-secondary);
+}
+
+.cc-blocked-placeholder-link {
+  color: var(--cc-toggle-on);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color var(--cc-animation-duration) var(--cc-animation-easing);
+}
+
+.cc-blocked-placeholder-link:hover {
+  color: var(--cc-text-primary);
+}
+
+.cc-blocked-placeholder-link:focus-visible {
+  outline: 2px solid var(--cc-toggle-on);
+  outline-offset: 2px;
+}
+
+/* Blocked iframe styling */
+iframe.cc-blocked {
+  display: none !important;
+}
+
+/* High contrast mode support for placeholders */
+@media (forced-colors: active) {
+  .cc-blocked-placeholder {
+    border: 2px dashed CanvasText;
+  }
+
+  .cc-blocked-placeholder-link {
+    color: LinkText;
+  }
+}
+
+/* Reduced motion for placeholders */
+@media (prefers-reduced-motion: reduce) {
+  .cc-blocked-placeholder-link {
+    transition: none;
+  }
+}

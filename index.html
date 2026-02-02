@@ -188,6 +188,14 @@
         <span class="status-value none" id="status-necessary">No consent yet</span>
       </div>
       <div class="status-row">
+        <span class="status-label">Functional Cookies</span>
+        <span class="status-value none" id="status-functional">No consent yet</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Preferences Cookies</span>
+        <span class="status-value none" id="status-preferences">No consent yet</span>
+      </div>
+      <div class="status-row">
         <span class="status-label">Analytics Cookies</span>
         <span class="status-value none" id="status-analytics">No consent yet</span>
       </div>
@@ -227,12 +235,14 @@
     // Update consent status display
     function updateStatusDisplay(consent) {
       const statusNecessary = document.getElementById('status-necessary');
+      const statusFunctional = document.getElementById('status-functional');
+      const statusPreferences = document.getElementById('status-preferences');
       const statusAnalytics = document.getElementById('status-analytics');
       const statusMarketing = document.getElementById('status-marketing');
       const statusTimestamp = document.getElementById('status-timestamp');
 
       if (!consent) {
-        [statusNecessary, statusAnalytics, statusMarketing, statusTimestamp].forEach(el => {
+        [statusNecessary, statusFunctional, statusPreferences, statusAnalytics, statusMarketing, statusTimestamp].forEach(el => {
           el.textContent = 'No consent yet';
           el.className = 'status-value none';
         });
@@ -242,6 +252,14 @@
       // Update necessary
       statusNecessary.textContent = consent.necessary ? 'Allowed' : 'Denied';
       statusNecessary.className = 'status-value ' + (consent.necessary ? 'allowed' : 'denied');
+
+      // Update functional
+      statusFunctional.textContent = consent.functional ? 'Allowed' : 'Denied';
+      statusFunctional.className = 'status-value ' + (consent.functional ? 'allowed' : 'denied');
+
+      // Update preferences
+      statusPreferences.textContent = consent.preferences ? 'Allowed' : 'Denied';
+      statusPreferences.className = 'status-value ' + (consent.preferences ? 'allowed' : 'denied');
 
       // Update analytics
       statusAnalytics.textContent = consent.analytics ? 'Allowed' : 'Denied';

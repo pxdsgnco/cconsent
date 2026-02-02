@@ -1,460 +1,513 @@
 # Cookie Consent Dialog
 
-A lightweight, GDPR-compliant cookie consent dialog built with vanilla HTML, CSS, and JavaScript.
+A lightweight, GDPR-compliant cookie consent dialog built with vanilla HTML, CSS, and JavaScript. Now with Google Consent Mode v2, geolocation-based consent, and framework adapters.
 
 ## Features
 
 - Clean, modern dark theme design
-- Three cookie categories: Necessary, Analytics, and Marketing
+- **5-category consent model**: Necessary, Functional, Preferences, Analytics, Marketing
+- Google Consent Mode v2 integration
+- Geolocation-based consent modes (GDPR, CCPA, LGPD)
+- Automatic script and iframe blocking with MutationObserver
+- Multi-category support with OR logic and negation
 - Customizable settings panel with toggle switches
-- Fully customizable text content (headings, descriptions, buttons)
-- Flexible storage: localStorage or cookies with configurable options
+- Fully customizable text content
+- Flexible storage: localStorage or cookies
 - Optional Base64 encoding for consent data
 - Consent ID generation for server-side tracking
-- Accessible (WCAG 2.1 AA compliant - see Accessibility section)
-- Responsive design for mobile devices
-- Smooth animations and micro-interactions
-- Callback hooks for integration with your application (supports async callbacks)
+- Accessible (WCAG 2.1 AA compliant)
+- Responsive design with mobile bottom sheet
+- Framework adapters for React, Vue, and Svelte
+- TypeScript support with full type definitions
 
 ## Installation
 
-1. Copy the `css/` and `js/` folders to your project
-2. Include the stylesheet and script in your HTML:
+### Browser (CDN)
 
 ```html
 <link rel="stylesheet" href="css/cookie-consent.css">
 <script src="js/cookie-consent.js"></script>
 ```
 
-3. Initialize the consent dialog:
+### NPM
+
+```bash
+npm install cconsent
+```
+
+```javascript
+import CookieConsent from 'cconsent';
+import 'cconsent/style.css';
+
+const consent = new CookieConsent({ policyUrl: '/privacy' });
+consent.init();
+```
+
+## Quick Start
 
 ```javascript
 const cookieConsent = new CookieConsent({
   policyUrl: 'https://yoursite.com/cookie-policy',
-  onAccept: (categories) => {
-    // User accepted all cookies
-    console.log('Accepted:', categories);
-  },
-  onReject: (categories) => {
-    // User rejected non-essential cookies
-    console.log('Rejected:', categories);
-  },
-  onSave: (categories) => {
-    // User saved custom preferences
-    console.log('Saved:', categories);
-  }
+  googleConsentMode: { enabled: true },
+  floatingButton: { enabled: true },
+  onAccept: (categories) => console.log('Accepted:', categories),
+  onReject: (categories) => console.log('Rejected:', categories),
+  onSave: (categories) => console.log('Saved:', categories)
 });
 
 cookieConsent.init();
 ```
 
-## API
+## Cookie Categories
+
+The 5-category model provides granular control over consent:
+
+| Category | Default | Toggleable | Description |
+|----------|---------|------------|-------------|
+| Necessary | ON | No | Required for security and basic functionality |
+| Functional | OFF | Yes | Enhanced features like live chat and videos |
+| Preferences | OFF | Yes | Remembers settings like language and theme |
+| Analytics | OFF | Yes | Site usage and performance tracking |
+| Marketing | OFF | Yes | Personalized ads and cross-site tracking |
+
+### Consent Object
+
+```javascript
+{
+  version: "2.0",
+  necessary: true,
+  functional: boolean,
+  preferences: boolean,
+  analytics: boolean,
+  marketing: boolean,
+  timestamp: string,
+  consentId: string  // Only if generateConsentId: true
+}
+```
+
+## Configuration
 
 ### Constructor Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `storageKey` | string | `'cookie_consent'` | Key for storing consent (localStorage or cookie name) |
-| `storageMethod` | string | `'localStorage'` | Storage method: `'localStorage'` or `'cookie'` |
-| `cookieOptions` | object | See below | Cookie configuration when using cookie storage |
-| `encryption` | boolean | `false` | Enable Base64 encoding for stored consent data |
-| `generateConsentId` | boolean | `false` | Generate unique UUID for each consent record |
-| `policyUrl` | string | `'#'` | URL to your cookie policy page |
-| `debug` | boolean | `false` | Enable debug mode with visual indicators |
-| `onAccept` | function | `null` | Callback when user accepts all cookies (can be async) |
-| `onReject` | function | `null` | Callback when user rejects non-essential cookies (can be async) |
-| `onSave` | function | `null` | Callback when user saves custom preferences (can be async) |
-| `content` | object | See below | Customize all text content in the modal |
-| `floatingButton` | object | See below | Floating settings button configuration |
+| `storageKey` | string | `'cookie_consent'` | Storage key name |
+| `storageMethod` | string | `'localStorage'` | `'localStorage'` or `'cookie'` |
+| `cookieOptions` | object | See below | Cookie configuration |
+| `encryption` | boolean | `false` | Enable Base64 encoding |
+| `generateConsentId` | boolean | `false` | Generate unique UUID |
+| `policyUrl` | string | `'#'` | Cookie policy URL |
+| `debug` | boolean | `false` | Enable debug mode |
+| `legacyMode` | boolean | `false` | Use 3-category callbacks |
+| `floatingButton` | object | See below | Floating button config |
+| `googleConsentMode` | object | See below | Google Consent Mode v2 |
+| `geo` | object | See below | Geolocation detection |
+| `content` | object | See below | UI text customization |
+| `onAccept` | function | `null` | Callback on accept all |
+| `onReject` | function | `null` | Callback on reject all |
+| `onSave` | function | `null` | Callback on save preferences |
 
 ### Cookie Storage Options
 
-When using `storageMethod: 'cookie'`, you can configure cookie attributes:
-
 ```javascript
-const cookieConsent = new CookieConsent({
-  storageMethod: 'cookie',
-  cookieOptions: {
-    sameSite: 'Strict',  // 'Strict', 'Lax', or 'None'
-    secure: true,        // Only send over HTTPS
-    domain: null,        // Cookie domain (null = current domain)
-    path: '/',           // Cookie path
-    expires: 365         // Days until expiration
-  }
-});
-```
-
-**Default cookie options:**
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `sameSite` | `'Strict'` | SameSite attribute for CSRF protection |
-| `secure` | `true` | Only transmit over HTTPS |
-| `domain` | `null` | Cookie domain (current domain if null) |
-| `path` | `'/'` | Cookie path |
-| `expires` | `365` | Expiration in days |
-
-### Encryption & Consent ID
-
-Enable Base64 encoding and consent ID generation for enhanced tracking:
-
-```javascript
-const cookieConsent = new CookieConsent({
-  storageMethod: 'cookie',
-  encryption: true,         // Base64 encode the consent data
-  generateConsentId: true,  // Generate unique UUID for each consent
-  onSave: async (categories) => {
-    // Send consent to your server with the consent ID
-    const consent = cookieConsent.getConsent();
-    await fetch('/api/consent', {
-      method: 'POST',
-      body: JSON.stringify({
-        consentId: consent.consentId,
-        categories
-      })
-    });
-  }
-});
-```
-
-**Security Notes:**
-- `encryption: true` uses Base64 encoding for light obfuscation, not cryptographic security
-- HttpOnly cookies cannot be set via JavaScript - use server-side for true HttpOnly cookies
-- The consent ID is a UUID v4 suitable for server-side consent record keeping
-
-### Floating Settings Button (GDPR Compliance)
-
-GDPR Article 7(3) requires consent withdrawal to be as easy as giving consent. The floating button provides persistent access to cookie settings:
-
-```javascript
-const cookieConsent = new CookieConsent({
-  floatingButton: {
-    enabled: true,
-    position: 'bottom-right', // 'bottom-left' | 'bottom-right'
-    icon: 'cookie',           // 'cookie' | 'shield' | 'gear' | custom SVG
-    label: 'Cookie Settings',
-    showIndicator: true,      // Show status dot with active count
-    offset: { x: 20, y: 20 }  // Distance from edges in pixels
-  }
-});
-```
-
-**Features:**
-- Appears only after initial consent decision
-- Status indicator shows current state:
-  - 🟢 Green: All cookies accepted
-  - 🟡 Yellow: Partial consent
-  - 🔴 Red: Essential only
-- Badge shows number of active categories (1-3)
-- Automatically hides when modal is open
-
-### Global API
-
-After initialization, a global API is exposed on `window.CookieConsent`:
-
-```javascript
-// Show the consent dialog
-window.CookieConsent.show();
-
-// Show settings view directly
-window.CookieConsent.showSettings();
-
-// Hide the dialog
-window.CookieConsent.hide();
-
-// Get current consent object
-const consent = window.CookieConsent.getConsent();
-
-// Check if a category is allowed
-if (window.CookieConsent.isAllowed('analytics')) {
-  // Load analytics...
+cookieOptions: {
+  sameSite: 'Strict',  // 'Strict', 'Lax', or 'None'
+  secure: true,
+  domain: null,
+  path: '/',
+  expires: 365  // Days
 }
-
-// Get status: 'all' | 'partial' | 'essential'
-const status = window.CookieConsent.getStatus();
-
-// Reset consent and show dialog
-window.CookieConsent.resetConsent();
 ```
 
-### Auto-binding Elements
+## Google Consent Mode v2
 
-Any element with `data-cc-open` attribute will automatically open the consent dialog when clicked:
-
-```html
-<a href="#" data-cc-open>Manage Cookie Preferences</a>
-<button data-cc-open>Privacy Settings</button>
-```
-
-This makes it easy to add "Cookie Settings" links in footers or privacy pages without writing JavaScript.
-
-### Storage Migration
-
-When switching from localStorage to cookies, existing consent is automatically migrated:
-
-```javascript
-// Previously used localStorage (default)
-const oldConsent = new CookieConsent();
-
-// Now switching to cookies - existing consent migrates automatically
-const newConsent = new CookieConsent({
-  storageMethod: 'cookie'
-});
-```
-
-### Content Customization
-
-You can customize all text in the modal by passing a `content` object. Any fields you don't specify will use the defaults. This uses deep merging, so you can override just the fields you need.
+Integrate with Google Analytics 4 and Google Ads:
 
 ```javascript
 const cookieConsent = new CookieConsent({
-  policyUrl: 'https://yoursite.com/privacy',
-  content: {
-    // Initial view (first screen)
-    initialView: {
-      heading: 'Cookie settings',
-      description: {
-        text: 'We use cookies to enhance your browsing experience, serve personalized content, and analyze our traffic. Read our ',
-        linkText: 'Cookie Policy',
-        suffix: ' to learn more.'
-      },
-      buttons: {
-        customize: 'Customize Cookie Settings',
-        rejectAll: 'Reject All Cookies',
-        acceptAll: 'Accept All Cookies'
-      }
+  googleConsentMode: {
+    enabled: true,
+    waitForUpdate: 500,
+    mapping: {
+      analytics: ['analytics_storage'],
+      marketing: ['ad_storage', 'ad_user_data', 'ad_personalization'],
+      functional: [],
+      preferences: []
     },
-    // Settings view (category toggles)
-    settingsView: {
-      heading: 'Cookie settings',
-      description: 'Manage your cookie preferences below. Necessary cookies are required for the website to function and cannot be disabled.',
-      buttons: {
-        save: 'Save Preferences'
-      }
-    },
-    // Category descriptions (names are not customizable)
-    categories: {
-      necessary: 'Enables security and basic functionality.',
-      analytics: 'Enables tracking of site performance.',
-      marketing: 'Enables ads personalization and tracking.'
+    adsDataRedaction: true,
+    urlPassthrough: false,
+    regionDefaults: {
+      'US': { ad_storage: 'granted', analytics_storage: 'granted' },
+      'EU': { ad_storage: 'denied', analytics_storage: 'denied' }
     }
   }
 });
 ```
 
-**Partial overrides** - Only specify what you want to change:
+### Consent Signals
 
-```javascript
-const cookieConsent = new CookieConsent({
-  content: {
-    initialView: {
-      heading: 'Privacy Preferences'  // Only change the heading
-    },
-    categories: {
-      analytics: 'Helps us understand how visitors use our site.'
-    }
-  }
-});
-```
+| Signal | Category | Description |
+|--------|----------|-------------|
+| `analytics_storage` | analytics | Google Analytics cookies |
+| `ad_storage` | marketing | Advertising cookies |
+| `ad_user_data` | marketing | User data for ads |
+| `ad_personalization` | marketing | Personalized advertising |
 
-### Methods
+### DataLayer Events
 
-| Method | Description |
-|--------|-------------|
-| `init()` | Initialize and show dialog if no consent exists |
-| `show()` | Show the consent dialog |
-| `hide()` | Hide the consent dialog |
-| `showSettings()` | Switch to settings view |
-| `showInitial()` | Switch to initial view |
-| `acceptAll()` | Accept all cookies and close |
-| `rejectAll()` | Reject non-essential cookies and close |
-| `savePreferences()` | Save current toggle states and close |
-| `getConsent()` | Get current consent object from storage |
-| `resetConsent()` | Clear consent and show dialog again |
-| `isAllowed(category)` | Check if a category is allowed |
-| `exportDebug()` | Export debug state snapshot (debug mode) |
-
-### Consent Object
-
-The consent object stored in storage has this structure:
+When consent changes, an event is pushed to the dataLayer:
 
 ```javascript
 {
-  necessary: true,      // Always true
-  analytics: boolean,
-  marketing: boolean,
-  timestamp: string,    // ISO date string
-  consentId: string     // UUID (only if generateConsentId: true)
+  event: 'cookie_consent_update',
+  cookie_consent: {
+    necessary: true,
+    functional: boolean,
+    preferences: boolean,
+    analytics: boolean,
+    marketing: boolean
+  }
 }
 ```
 
-## Cookie Categories
+## Geolocation Detection
 
-| Category | Default | Toggleable | Description |
-|----------|---------|------------|-------------|
-| Necessary | ON | No | Required for security and basic functionality |
-| Analytics | OFF | Yes | Site usage and performance tracking |
-| Marketing | OFF | Yes | Personalized ads and cross-site tracking |
-
-## Script Blocking
-
-Scripts can be automatically blocked until the user gives consent. Add a `data-cookie-category` attribute to any script tag:
-
-```html
-<!-- These scripts will be blocked until consent is given -->
-<script data-cookie-category="analytics" src="https://analytics.example.com/script.js"></script>
-<script data-cookie-category="marketing" src="https://ads.example.com/pixel.js"></script>
-
-<!-- Necessary scripts load normally (no attribute needed) -->
-<script src="https://example.com/essential.js"></script>
-```
-
-When the page loads:
-1. Scripts with `data-cookie-category` are scanned and blocked (src removed)
-2. When consent is given for a category, scripts are loaded dynamically
-3. This works for both external scripts (with `src`) and inline scripts
-
-## Debug Mode
-
-Enable debug mode during development to visualize consent state and script blocking:
+Automatically adjust consent requirements based on user location:
 
 ```javascript
 const cookieConsent = new CookieConsent({
-  debug: true,  // Enable debug mode
-  // ... other options
+  geo: {
+    enabled: true,
+    method: 'timezone',  // 'timezone', 'api', or 'header'
+    apiEndpoint: null,   // For 'api' method
+    headerName: 'CF-IPCountry',  // For 'header' method
+    timeout: 500,
+    cache: true,
+    cacheDuration: 86400000,  // 24 hours
+    regions: {
+      gdpr: ['AT', 'BE', 'BG', ...],  // EU countries
+      ccpa: ['US-CA'],
+      lgpd: ['BR']
+    },
+    modeByRegion: {
+      gdpr: 'opt-in',   // Must consent before tracking
+      ccpa: 'opt-out',  // Can track until rejected
+      lgpd: 'opt-in',
+      default: 'none'   // No consent UI needed
+    }
+  }
 });
 ```
 
-### Debug Features
+### Detection Methods
 
-**Visual Debug Badge**
-- Floating badge in bottom-left corner showing current consent state
-- Real-time updates when consent changes
-- Click header to collapse/expand
+| Method | Description |
+|--------|-------------|
+| `timezone` | Uses `Intl.DateTimeFormat` to detect country from timezone |
+| `api` | Calls external geolocation API endpoint |
+| `header` | Reads country from `<meta name="user-country">` tag |
 
-**Console Logging**
-- Styled console logs for all state changes
-- Logs when scripts are blocked/allowed
-- Prefix: `[cconsent]`
+### CCPA Mode
 
-**Scripts Table**
-- Shows all managed scripts with their category and status
-- Status indicators: 🟢 Loaded, 🔴 Blocked, ⏳ Pending
+When `geo.modeByRegion.ccpa: 'opt-out'` is active, the reject button shows "Do Not Sell My Info" instead of "Reject All Cookies".
 
-**Simulation Buttons**
-- **Clear Consent**: Reset consent and show dialog again
-- **Randomize**: Set random analytics/marketing values (for testing)
-- **Export**: Copy debug state to clipboard as JSON
+## Script & Iframe Blocking
 
-### exportDebug() Method
+### Basic Usage
 
-Get a complete state snapshot:
+```html
+<!-- Blocked until analytics consent -->
+<script data-cookie-category="analytics" src="https://analytics.example.com/script.js"></script>
+
+<!-- Blocked until marketing consent -->
+<iframe data-cookie-category="marketing" src="https://ads.example.com/widget"></iframe>
+```
+
+### Multi-Category Support
+
+```html
+<!-- Allowed if EITHER analytics OR marketing is consented (OR logic) -->
+<script data-cookie-category="analytics marketing" src="script.js"></script>
+
+<!-- Allowed only if marketing is NOT consented (negation) -->
+<script data-cookie-category="!marketing" src="privacy-focused.js"></script>
+```
+
+### Dynamic Script Detection
+
+Scripts and iframes added dynamically via JavaScript are automatically detected and blocked using MutationObserver:
 
 ```javascript
-const debugState = cookieConsent.exportDebug();
-console.log(debugState);
-// {
-//   consent: { necessary: true, analytics: false, marketing: false, timestamp: "...", consentId: "..." },
-//   categories: { necessary: true, analytics: false, marketing: false },
-//   scripts: [
-//     { src: "analytics.js", category: "analytics", status: "blocked" },
-//     { src: "ads.js", category: "marketing", status: "blocked" }
-//   ],
-//   timestamp: "2024-01-15T10:30:00.000Z",
-//   storageKey: "cookie_consent",
-//   storageMethod: "localStorage",
-//   encryption: false,
-//   consentId: null,
-//   debugEnabled: true
-// }
+// This script will be automatically blocked if analytics not consented
+const script = document.createElement('script');
+script.src = 'https://analytics.example.com/track.js';
+script.setAttribute('data-cookie-category', 'analytics');
+document.body.appendChild(script);
+```
+
+### Blocked Content Placeholders
+
+Blocked iframes display a placeholder with a "Change settings" link:
+
+```css
+.cc-blocked-placeholder {
+  /* Customizable via CSS variables */
+}
+```
+
+### Script Management API
+
+```javascript
+// Re-scan DOM for new scripts/iframes
+window.CookieConsent.scanScripts();
+
+// Check if an element would be allowed
+window.CookieConsent.wouldRunScript(element);
+
+// Get managed scripts info
+window.CookieConsent.getManagedScripts();
+// [{ src: "analytics.js", category: "analytics", status: "blocked" }]
+
+// Get managed iframes info
+window.CookieConsent.getManagedIframes();
+// [{ src: "widget.html", category: "marketing", status: "blocked" }]
+```
+
+## Floating Settings Button
+
+GDPR Article 7(3) requires consent withdrawal to be as easy as giving consent:
+
+```javascript
+floatingButton: {
+  enabled: true,
+  position: 'bottom-right',  // 'bottom-left' | 'bottom-right'
+  icon: 'cookie',            // 'cookie' | 'shield' | 'gear' | custom SVG
+  label: 'Cookie Settings',
+  showIndicator: true,
+  offset: { x: 20, y: 20 }
+}
+```
+
+**Status Indicator:**
+- 🟢 Green: All 5 categories accepted
+- 🟡 Yellow: Partial consent
+- 🔴 Red: Essential only
+
+## Global API
+
+```javascript
+window.CookieConsent.show();
+window.CookieConsent.showSettings();
+window.CookieConsent.hide();
+window.CookieConsent.getConsent();
+window.CookieConsent.isAllowed('analytics');
+window.CookieConsent.getStatus();  // 'all' | 'partial' | 'essential'
+window.CookieConsent.resetConsent();
+window.CookieConsent.scanScripts();
+window.CookieConsent.wouldRunScript(element);
+window.CookieConsent.getManagedScripts();
+window.CookieConsent.getManagedIframes();
+```
+
+## Auto-binding Elements
+
+```html
+<a href="#" data-cc-open>Manage Cookie Preferences</a>
+```
+
+## Framework Adapters
+
+### React
+
+```bash
+npm install cconsent cconsent-react
+```
+
+```tsx
+import { CookieConsentProvider, useCookieConsent, ConsentScript, ConsentGate } from 'cconsent-react';
+import 'cconsent/style.css';
+
+function App() {
+  return (
+    <CookieConsentProvider config={{ policyUrl: '/privacy' }}>
+      <MyApp />
+    </CookieConsentProvider>
+  );
+}
+
+function MyComponent() {
+  const { consent, isAllowed, showSettings } = useCookieConsent();
+
+  return (
+    <>
+      <ConsentGate category="analytics" fallback={<p>Analytics disabled</p>}>
+        <AnalyticsComponent />
+      </ConsentGate>
+
+      <ConsentScript category="marketing" src="https://ads.example.com/pixel.js" />
+
+      <button onClick={showSettings}>Cookie Settings</button>
+    </>
+  );
+}
+```
+
+### Vue 3
+
+```bash
+npm install cconsent cconsent-vue
+```
+
+```typescript
+import { createApp } from 'vue';
+import { createCookieConsent } from 'cconsent-vue';
+import 'cconsent/style.css';
+
+const app = createApp(App);
+app.use(createCookieConsent({ policyUrl: '/privacy' }));
+app.mount('#app');
+```
+
+```vue
+<script setup>
+import { useCookieConsent } from 'cconsent-vue';
+
+const { consent, isAllowed, showSettings } = useCookieConsent();
+</script>
+
+<template>
+  <div v-if="isAllowed('analytics')">
+    <AnalyticsComponent />
+  </div>
+  <button @click="showSettings">Cookie Settings</button>
+</template>
+```
+
+### Svelte
+
+```bash
+npm install cconsent cconsent-svelte
+```
+
+```svelte
+<script>
+  import { onMount } from 'svelte';
+  import { initCookieConsent, consent, isAllowed, showSettings } from 'cconsent-svelte';
+  import 'cconsent/style.css';
+
+  onMount(() => {
+    initCookieConsent({ policyUrl: '/privacy' });
+  });
+</script>
+
+{#if $consent?.analytics}
+  <AnalyticsComponent />
+{/if}
+
+<button on:click={showSettings}>Cookie Settings</button>
+```
+
+## Content Customization
+
+```javascript
+content: {
+  initialView: {
+    heading: 'Cookie settings',
+    description: {
+      text: 'We use cookies to enhance your experience. Read our ',
+      linkText: 'Cookie Policy',
+      suffix: ' to learn more.'
+    },
+    buttons: {
+      customize: 'Customize Cookie Settings',
+      rejectAll: 'Reject All Cookies',
+      acceptAll: 'Accept All Cookies'
+    }
+  },
+  settingsView: {
+    heading: 'Cookie settings',
+    description: 'Manage your preferences below.',
+    buttons: { save: 'Save Preferences' }
+  },
+  categories: {
+    necessary: 'Required for security and basic functionality.',
+    functional: 'Enables enhanced features like live chat and videos.',
+    preferences: 'Remembers your settings like language and theme.',
+    analytics: 'Helps us understand how visitors use our site.',
+    marketing: 'Enables personalized ads and tracking.'
+  }
+}
+```
+
+## Debug Mode
+
+```javascript
+const cookieConsent = new CookieConsent({ debug: true });
+```
+
+**Debug Badge Features:**
+- Shows all 5 category states
+- Lists managed scripts and iframes with status
+- Clear Consent, Randomize, and Export buttons
+- Console logging with `[cconsent]` prefix
+
+```javascript
+const state = cookieConsent.exportDebug();
+// Includes: consent, categories, scripts, iframes, geo, googleConsentMode, etc.
+```
+
+## Migration from v1
+
+If upgrading from the 3-category model (v1), consent is automatically migrated:
+
+- Existing `necessary`, `analytics`, `marketing` values are preserved
+- New `functional` and `preferences` categories default to `false`
+- Storage is updated to version `"2.0"`
+
+For backward-compatible callbacks:
+
+```javascript
+const cookieConsent = new CookieConsent({
+  legacyMode: true,  // Callbacks receive 3-category object
+  onAccept: (categories) => {
+    // categories: { necessary, analytics, marketing }
+  }
+});
 ```
 
 ## Accessibility
 
-This component is built with WCAG 2.1 AA compliance in mind.
-
-### Keyboard Navigation
-
-| Key | Action |
-|-----|--------|
-| `Tab` | Move focus to next interactive element |
-| `Shift+Tab` | Move focus to previous interactive element |
-| `Enter/Space` | Activate buttons and toggles |
-| `Escape` | Close modal and reject non-essential cookies |
-
-### Focus Management
-
-- **Focus Trap**: When the modal is open, Tab/Shift+Tab cycles only through elements within the modal
-- **Focus Restoration**: When the modal closes, focus returns to the element that triggered it
-- **Initial Focus**: Focus is automatically set to the first interactive element when the modal opens
-
-### Screen Reader Support
-
-- Modal has `role="dialog"`, `aria-modal="true"`, and `aria-labelledby` attributes
-- Toggle switches have `role="switch"` and `aria-checked` attributes that update dynamically
-- ARIA live region announces preference changes (e.g., "Cookie preferences saved")
-- Descriptive labels on all interactive elements
-
-### High Contrast Mode
-
-The component supports Windows High Contrast Mode and other forced-colors environments:
-
-- All borders use system color keywords (`CanvasText`, `ButtonText`)
-- Toggle states are distinguishable in high contrast
-- Links use `LinkText` color
-
-### Reduced Motion
-
-Animations are disabled when `prefers-reduced-motion: reduce` is set in the user's system preferences.
+- WCAG 2.1 AA compliant
+- Full keyboard navigation with focus trap
+- Screen reader support with ARIA live regions
+- High contrast mode support
+- Reduced motion support
 
 ## Mobile Behavior
 
-On devices with viewport width < 640px, the dialog transforms into a mobile-optimized bottom sheet pattern.
-
-### Bottom Sheet Features
-
-| Feature | Description |
-|---------|-------------|
-| **Slide-up animation** | Modal slides up from the bottom of the screen |
-| **Rounded corners** | Top corners rounded (16px) for native feel |
-| **Drag handle** | Visual indicator at top showing swipe capability |
-| **Swipe to dismiss** | Drag down to dismiss (rejects non-essential cookies) |
-| **Viewport lock** | Background scrolling disabled while modal is open |
-| **Safe areas** | Respects `env(safe-area-inset-bottom)` for notched devices |
-
-### Touch Target Compliance
-
-Touch targets meet accessibility guidelines for mobile devices:
-
-| Element | Size | Standard |
-|---------|------|----------|
-| Buttons | 48px min-height | Material Design (48dp) |
-| Toggle switches | 44px × 26px | iOS HIG (44pt) |
-| Category cards | 72px min-height | iOS HIG |
-
-### Swipe Gesture
-
-The drag handle at the top of the bottom sheet enables swipe-to-dismiss:
-
-- **Fast swipe down** (velocity > 0.5 px/ms): Dismisses and rejects cookies
-- **Slow drag > 100px**: Dismisses and rejects cookies
-- **Slow drag < 100px**: Modal snaps back to original position
-
-This ensures GDPR compliance by treating swipe dismiss as rejecting non-essential cookies (conservative approach).
-
-### Safe Area Support
-
-For devices with notches or home indicators (iPhone X+), the modal automatically adds extra bottom padding:
-
-```css
-padding-bottom: calc(20px + env(safe-area-inset-bottom));
-```
-
-The floating button also respects safe areas on mobile.
+- Bottom sheet pattern on viewports < 640px
+- Swipe-to-dismiss (rejects non-essential cookies)
+- Touch-optimized targets (48px minimum)
+- Safe area support for notched devices
 
 ## Browser Support
 
 Works in all modern browsers (Chrome, Firefox, Safari, Edge).
+
+## TypeScript
+
+Full TypeScript support with exported types:
+
+```typescript
+import type {
+  CookieConsentConfig,
+  ConsentCategories,
+  ConsentState,
+  ConsentStatus,
+  GoogleConsentModeConfig,
+  GeoConfig
+} from 'cconsent';
+```
 
 ## License
 
