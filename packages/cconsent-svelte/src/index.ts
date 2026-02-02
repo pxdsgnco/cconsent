@@ -1,22 +1,11 @@
 import { writable, derived, get, type Readable, type Writable } from 'svelte/store';
-import type { ConsentCategories, ConsentStatus, CookieConsentConfig } from 'cconsent';
-
-// Type for the CookieConsent instance
-interface CookieConsentInstance {
-  init: () => Promise<void>;
-  show: () => void;
-  hide: () => void;
-  showSettings: () => void;
-  getConsent: () => ConsentState | null;
-  isAllowed: (category: string) => boolean;
-  resetConsent: () => void;
-  _getConsentStatus: () => ConsentStatus;
-}
-
-interface ConsentState extends ConsentCategories {
-  timestamp?: string;
-  consentId?: string;
-}
+import CookieConsentClass, {
+  type ConsentCategories,
+  type ConsentStatus,
+  type ConsentState,
+  type CookieConsentConfig,
+  type CookieConsentInstance
+} from 'cconsent';
 
 // Stores
 let instance: CookieConsentInstance | null = null;
@@ -58,15 +47,6 @@ export const status: Readable<ConsentStatus> = derived(consent, () => {
  */
 export async function initCookieConsent(config: CookieConsentConfig): Promise<void> {
   if (typeof window === 'undefined') return;
-
-  const CookieConsentClass = (window as unknown as {
-    CookieConsent: new (config: CookieConsentConfig) => CookieConsentInstance;
-  }).CookieConsent;
-
-  if (!CookieConsentClass) {
-    console.warn('[cconsent-svelte] CookieConsent class not found. Make sure cconsent is loaded.');
-    return;
-  }
 
   instance = new CookieConsentClass({
     ...config,
@@ -188,12 +168,6 @@ export function createConsentStore() {
 
     async init(config: CookieConsentConfig): Promise<void> {
       if (typeof window === 'undefined') return;
-
-      const CookieConsentClass = (window as unknown as {
-        CookieConsent: new (config: CookieConsentConfig) => CookieConsentInstance;
-      }).CookieConsent;
-
-      if (!CookieConsentClass) return;
 
       localInstance = new CookieConsentClass({
         ...config,

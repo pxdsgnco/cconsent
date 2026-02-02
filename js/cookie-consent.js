@@ -611,6 +611,12 @@ class CookieConsent {
       script.element.removeAttribute('src');
       // Set type to prevent execution
       script.element.setAttribute('type', 'text/plain');
+    } else if (script.inlineContent) {
+      // For inline scripts, set type to text/plain
+      // Note: Inline scripts must use type="text/plain" from the start to be truly blocked
+      // This is a fallback that clears the content to prevent re-execution
+      script.element.setAttribute('type', 'text/plain');
+      script.element.textContent = ''; // Clear to prevent potential re-parsing
     }
     script.blocked = true;
     this._log(`Script blocked: ${script.originalSrc || '[inline]'} (${script.category})`, null, 'warn');
@@ -2681,10 +2687,26 @@ class CookieConsent {
 
     this._log('Consent reset', null, 'warn');
 
-    // Remove existing modal if present
+    // Remove existing modal and overlay if present
     if (this.modal) {
       this.modal.remove();
+      this.modal = null;
+    }
+    if (this.overlay) {
       this.overlay.remove();
+      this.overlay = null;
+    }
+
+    // Remove ARIA live region
+    if (this.liveRegion) {
+      this.liveRegion.remove();
+      this.liveRegion = null;
+    }
+
+    // Remove floating button (will be recreated after new consent)
+    if (this.floatingButton) {
+      this.floatingButton.remove();
+      this.floatingButton = null;
     }
 
     // Rescan scripts (they may have been replaced)
@@ -2715,3 +2737,6 @@ class CookieConsent {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = CookieConsent;
 }
+
+// ES Module export
+export default CookieConsent;

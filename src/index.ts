@@ -9,29 +9,54 @@ export * from './types';
 // Export core modules
 export { ConsentManager, StorageAdapter, ScriptManager, GeoDetector } from './core';
 
-// Re-export the existing CookieConsent class (from JS file)
-// For the npm package, we reference the compiled version
-
-// Import CSS for bundlers
+// Import CSS for bundlers (side effect)
 import '../css/cookie-consent.css';
 
-// The main CookieConsent class from the original JS implementation
-// This file serves as the TypeScript entry point and type provider
-// The actual implementation is in js/cookie-consent.js
+// Import the main CookieConsent class from JS implementation
+// @ts-expect-error - JS file without types
+import CookieConsentClass from '../js/cookie-consent.js';
 
-// Type declarations for the global window object
-declare global {
-  interface Window {
-    CookieConsent: import('./types').CookieConsentAPI;
-  }
-}
-
-// For backwards compatibility, the UMD build will expose CookieConsent globally
-// ESM/CJS users should use the class directly
+import type {
+  CookieConsentConfig,
+  ConsentState,
+  ConsentCategories,
+  ConsentStatus,
+  ManagedScriptInfo,
+  ManagedIframeInfo,
+  DebugExport
+} from './types';
 
 /**
- * Default export is the CookieConsent class
- * Usage:
+ * CookieConsent class interface for TypeScript users
+ */
+export interface CookieConsentInstance {
+  init(): Promise<void>;
+  show(): void;
+  hide(): void;
+  showSettings(): void;
+  showInitial(): void;
+  getConsent(): ConsentState | null;
+  isAllowed(category: keyof ConsentCategories): boolean;
+  resetConsent(): void;
+  acceptAll(): Promise<void>;
+  rejectAll(): Promise<void>;
+  savePreferences(): Promise<void>;
+  exportDebug(): DebugExport;
+  _getConsentStatus(): ConsentStatus;
+  _getActiveCategoryCount(): number;
+}
+
+/**
+ * CookieConsent constructor type
+ */
+export interface CookieConsentConstructor {
+  new (config?: CookieConsentConfig): CookieConsentInstance;
+}
+
+/**
+ * The CookieConsent class - main entry point for the library
+ *
+ * @example
  * ```typescript
  * import CookieConsent from 'cconsent';
  * import 'cconsent/style.css';
@@ -44,3 +69,25 @@ declare global {
  * consent.init();
  * ```
  */
+const CookieConsent: CookieConsentConstructor = CookieConsentClass;
+
+export default CookieConsent;
+
+// Type declarations for the global window object
+declare global {
+  interface Window {
+    CookieConsent: {
+      show: () => void;
+      showSettings: () => void;
+      hide: () => void;
+      getConsent: () => ConsentState | null;
+      isAllowed: (category: keyof ConsentCategories) => boolean;
+      resetConsent: () => void;
+      getStatus: () => ConsentStatus;
+      scanScripts: () => void;
+      wouldRunScript: (element: HTMLElement) => boolean;
+      getManagedScripts: () => ManagedScriptInfo[];
+      getManagedIframes: () => ManagedIframeInfo[];
+    };
+  }
+}

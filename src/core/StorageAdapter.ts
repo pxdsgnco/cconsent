@@ -101,12 +101,23 @@ export class StorageAdapter {
   }
 
   /**
-   * Delete a cookie
+   * Delete a cookie by setting it with an expired date
    */
   private deleteCookie(name: string): void {
-    const opts = { ...this.cookieOptions, expires: -1 };
-    this.cookieOptions = opts;
-    this.setCookie(name, '');
+    const opts = this.cookieOptions;
+    // Build cookie string with expired date directly (do not mutate this.cookieOptions)
+    let cookieString = `${encodeURIComponent(name)}=`;
+
+    // Set expiration to the past
+    const date = new Date(0);
+    cookieString += `; expires=${date.toUTCString()}`;
+
+    if (opts.path) cookieString += `; path=${opts.path}`;
+    if (opts.domain) cookieString += `; domain=${opts.domain}`;
+    if (opts.sameSite) cookieString += `; SameSite=${opts.sameSite}`;
+    if (opts.secure) cookieString += '; Secure';
+
+    document.cookie = cookieString;
   }
 
   /**

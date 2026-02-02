@@ -201,6 +201,11 @@ export class ScriptManager {
     if (script.originalSrc) {
       script.element.removeAttribute('src');
       script.element.setAttribute('type', 'text/plain');
+    } else if (script.inlineContent) {
+      // For inline scripts, set type to text/plain
+      // Note: Inline scripts must use type="text/plain" from the start to be truly blocked
+      script.element.setAttribute('type', 'text/plain');
+      script.element.textContent = ''; // Clear to prevent potential re-parsing
     }
     script.blocked = true;
   }
