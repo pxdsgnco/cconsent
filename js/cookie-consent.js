@@ -2737,6 +2737,3 @@ class CookieConsent {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = CookieConsent;
 }
-
-// ES Module export
-export default CookieConsent;
