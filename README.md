@@ -65,6 +65,7 @@ cookieConsent.init();
 | `onReject` | function | `null` | Callback when user rejects non-essential cookies (can be async) |
 | `onSave` | function | `null` | Callback when user saves custom preferences (can be async) |
 | `content` | object | See below | Customize all text content in the modal |
+| `floatingButton` | object | See below | Floating settings button configuration |
 
 ### Cookie Storage Options
 
@@ -120,6 +121,72 @@ const cookieConsent = new CookieConsent({
 - `encryption: true` uses Base64 encoding for light obfuscation, not cryptographic security
 - HttpOnly cookies cannot be set via JavaScript - use server-side for true HttpOnly cookies
 - The consent ID is a UUID v4 suitable for server-side consent record keeping
+
+### Floating Settings Button (GDPR Compliance)
+
+GDPR Article 7(3) requires consent withdrawal to be as easy as giving consent. The floating button provides persistent access to cookie settings:
+
+```javascript
+const cookieConsent = new CookieConsent({
+  floatingButton: {
+    enabled: true,
+    position: 'bottom-right', // 'bottom-left' | 'bottom-right'
+    icon: 'cookie',           // 'cookie' | 'shield' | 'gear' | custom SVG
+    label: 'Cookie Settings',
+    showIndicator: true,      // Show status dot with active count
+    offset: { x: 20, y: 20 }  // Distance from edges in pixels
+  }
+});
+```
+
+**Features:**
+- Appears only after initial consent decision
+- Status indicator shows current state:
+  - 🟢 Green: All cookies accepted
+  - 🟡 Yellow: Partial consent
+  - 🔴 Red: Essential only
+- Badge shows number of active categories (1-3)
+- Automatically hides when modal is open
+
+### Global API
+
+After initialization, a global API is exposed on `window.CookieConsent`:
+
+```javascript
+// Show the consent dialog
+window.CookieConsent.show();
+
+// Show settings view directly
+window.CookieConsent.showSettings();
+
+// Hide the dialog
+window.CookieConsent.hide();
+
+// Get current consent object
+const consent = window.CookieConsent.getConsent();
+
+// Check if a category is allowed
+if (window.CookieConsent.isAllowed('analytics')) {
+  // Load analytics...
+}
+
+// Get status: 'all' | 'partial' | 'essential'
+const status = window.CookieConsent.getStatus();
+
+// Reset consent and show dialog
+window.CookieConsent.resetConsent();
+```
+
+### Auto-binding Elements
+
+Any element with `data-cc-open` attribute will automatically open the consent dialog when clicked:
+
+```html
+<a href="#" data-cc-open>Manage Cookie Preferences</a>
+<button data-cc-open>Privacy Settings</button>
+```
+
+This makes it easy to add "Cookie Settings" links in footers or privacy pages without writing JavaScript.
 
 ### Storage Migration
 

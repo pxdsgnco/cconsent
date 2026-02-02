@@ -649,3 +649,164 @@
     width: calc(100% - 32px);
   }
 }
+
+/* ============================================
+   Floating Settings Button
+   ============================================ */
+.cc-floating-btn {
+  position: fixed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  background-color: var(--cc-surface-primary);
+  border: 1px solid var(--cc-border-default);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
+  z-index: 9997;
+  transition: transform var(--cc-animation-duration) var(--cc-animation-easing),
+              box-shadow var(--cc-animation-duration) var(--cc-animation-easing),
+              background-color var(--cc-animation-duration) var(--cc-animation-easing);
+}
+
+.cc-floating-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4), 0 3px 6px rgba(0, 0, 0, 0.3);
+  background-color: var(--cc-surface-secondary);
+}
+
+.cc-floating-btn:active {
+  transform: scale(0.95);
+}
+
+.cc-floating-btn:focus-visible {
+  outline: 2px solid var(--cc-toggle-on);
+  outline-offset: 2px;
+}
+
+/* Positioning variants */
+.cc-floating-bottom-right {
+  bottom: var(--cc-floating-offset-y, 20px);
+  right: var(--cc-floating-offset-x, 20px);
+}
+
+.cc-floating-bottom-left {
+  bottom: var(--cc-floating-offset-y, 20px);
+  left: var(--cc-floating-offset-x, 20px);
+}
+
+/* Icon styling */
+.cc-floating-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cc-text-primary);
+}
+
+.cc-floating-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Status indicator */
+.cc-floating-indicator {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--cc-surface-primary);
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--cc-font-family);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  transition: background-color var(--cc-animation-duration) var(--cc-animation-easing);
+}
+
+/* Status colors */
+.cc-floating-indicator-all {
+  background-color: #22c55e; /* Green - all accepted */
+}
+
+.cc-floating-indicator-partial {
+  background-color: #eab308; /* Yellow - partial */
+}
+
+.cc-floating-indicator-essential {
+  background-color: #ef4444; /* Red - essential only */
+}
+
+/* Show count on indicator */
+.cc-floating-indicator::after {
+  content: attr(data-count);
+}
+
+/* Mobile adjustments */
+@media (max-width: 480px) {
+  .cc-floating-btn {
+    width: 48px;
+    height: 48px;
+  }
+
+  .cc-floating-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .cc-floating-indicator {
+    width: 14px;
+    height: 14px;
+    font-size: 9px;
+    top: 0;
+    right: 0;
+  }
+}
+
+/* Hide floating button when modal is open */
+.cc-floating-btn.cc-floating-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.8);
+}
+
+/* High contrast mode support */
+@media (forced-colors: active) {
+  .cc-floating-btn {
+    border: 2px solid ButtonText;
+  }
+
+  .cc-floating-indicator {
+    border-color: Canvas;
+    forced-color-adjust: none;
+  }
+
+  .cc-floating-indicator-all {
+    background-color: green;
+  }
+
+  .cc-floating-indicator-partial {
+    background-color: yellow;
+    color: black;
+  }
+
+  .cc-floating-indicator-essential {
+    background-color: red;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .cc-floating-btn {
+    transition: none;
+  }
+
+  .cc-floating-indicator {
+    transition: none;
+  }
+}

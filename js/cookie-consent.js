@@ -16,6 +16,17 @@ class CookieConsent {
     this.managedScripts = []; // Track scripts with data-cookie-category
     this.debugBadge = null;
 
+    // Floating button configuration
+    this.floatingButtonConfig = this._mergeDeep({
+      enabled: false,
+      position: 'bottom-right', // 'bottom-left' | 'bottom-right'
+      icon: 'cookie', // 'cookie' | 'shield' | 'gear' | custom SVG string
+      label: 'Cookie Settings',
+      showIndicator: true,
+      offset: { x: 20, y: 20 }
+    }, options.floatingButton || {});
+    this.floatingButton = null;
+
     // Storage configuration
     this.storageMethod = options.storageMethod || 'localStorage';
     this.cookieOptions = this._mergeDeep({
@@ -449,6 +460,12 @@ class CookieConsent {
     // Scan for scripts with data-cookie-category
     this._scanScripts();
 
+    // Expose global API
+    this._exposeGlobalAPI();
+
+    // Bind auto-open elements (data-cc-open)
+    this._bindAutoOpenElements();
+
     // Check if consent already exists
     const existingConsent = this.getConsent();
     if (existingConsent) {
@@ -467,6 +484,10 @@ class CookieConsent {
       if (this.debug) {
         this._createDebugBadge();
       }
+
+      // Create floating button (only after initial consent)
+      this._createFloatingButton();
+
       return;
     }
 
@@ -1019,6 +1040,238 @@ class CookieConsent {
   }
 
   /**
+   * Get current consent status for visual indicators
+   * @returns {string} 'all' | 'partial' | 'essential'
+   */
+  _getConsentStatus() {
+    const consent = this.getConsent();
+    if (!consent) return 'essential';
+
+    const analytics = consent.analytics === true;
+    const marketing = consent.marketing === true;
+
+    if (analytics && marketing) return 'all';
+    if (analytics || marketing) return 'partial';
+    return 'essential';
+  }
+
+  /**
+   * Get the count of active cookie categories
+   * @returns {number} Number of active categories (1-3)
+   */
+  _getActiveCategoryCount() {
+    const consent = this.getConsent();
+    if (!consent) return 1; // Only necessary
+
+    let count = 1; // Necessary is always active
+    if (consent.analytics) count++;
+    if (consent.marketing) count++;
+    return count;
+  }
+
+  /**
+   * Get SVG icon for floating button
+   * @param {string} iconType - Icon type or custom SVG
+   * @returns {string} SVG markup
+   */
+  _getFloatingButtonIcon(iconType) {
+    const icons = {
+      cookie: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10c0-.34-.017-.676-.05-1.008a3.5 3.5 0 0 1-3.95-3.95A10.018 10.018 0 0 0 12 2zm-1 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 5a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm2 5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5-2a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>',
+      shield: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M12 2L4 6v6c0 5.25 3.4 10.2 8 12 4.6-1.8 8-6.75 8-12V6l-8-4zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.59L19 9l-8 8z"/></svg>',
+      gear: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>'
+    };
+
+    // Return custom SVG if provided, otherwise return predefined icon
+    if (iconType.startsWith('<svg')) {
+      return iconType;
+    }
+    return icons[iconType] || icons.cookie;
+  }
+
+  /**
+   * Create the floating settings button
+   */
+  _createFloatingButton() {
+    if (!this.floatingButtonConfig.enabled) return;
+    if (this.floatingButton) {
+      this.floatingButton.remove();
+    }
+
+    const config = this.floatingButtonConfig;
+    const status = this._getConsentStatus();
+    const activeCount = this._getActiveCategoryCount();
+
+    // Create button container
+    const button = this._createElement('button', {
+      type: 'button',
+      className: `cc-floating-btn cc-floating-${config.position}`
+    });
+
+    // Set positioning via CSS custom properties
+    button.style.setProperty('--cc-floating-offset-x', `${config.offset.x}px`);
+    button.style.setProperty('--cc-floating-offset-y', `${config.offset.y}px`);
+
+    // Accessibility attributes
+    button.setAttribute('aria-label', `${config.label}, currently accepting ${activeCount} of 3 categories`);
+    button.setAttribute('title', config.label);
+
+    // Icon container
+    const iconWrapper = this._createElement('span', { className: 'cc-floating-icon' });
+    iconWrapper.innerHTML = this._getFloatingButtonIcon(config.icon);
+    button.appendChild(iconWrapper);
+
+    // Status indicator
+    if (config.showIndicator) {
+      const indicator = this._createElement('span', {
+        className: `cc-floating-indicator cc-floating-indicator-${status}`
+      });
+      indicator.setAttribute('data-count', activeCount);
+      button.appendChild(indicator);
+    }
+
+    // Click handler
+    button.addEventListener('click', () => {
+      this.triggerElement = button; // Store for focus restoration
+      if (!this.modal) {
+        this._createModal();
+      }
+      this.show();
+    });
+
+    document.body.appendChild(button);
+    this.floatingButton = button;
+
+    this._log('Floating button created', { position: config.position, status });
+  }
+
+  /**
+   * Update the floating button's status indicator
+   */
+  _updateFloatingButton() {
+    if (!this.floatingButton || !this.floatingButtonConfig.showIndicator) return;
+
+    const status = this._getConsentStatus();
+    const activeCount = this._getActiveCategoryCount();
+    const indicator = this.floatingButton.querySelector('.cc-floating-indicator');
+
+    if (indicator) {
+      // Update status class
+      indicator.className = `cc-floating-indicator cc-floating-indicator-${status}`;
+      indicator.setAttribute('data-count', activeCount);
+    }
+
+    // Update aria-label
+    this.floatingButton.setAttribute(
+      'aria-label',
+      `${this.floatingButtonConfig.label}, currently accepting ${activeCount} of 3 categories`
+    );
+
+    this._log('Floating button updated', { status, activeCount });
+  }
+
+  /**
+   * Bind click handlers to elements with data-cc-open attribute
+   */
+  _bindAutoOpenElements() {
+    const elements = document.querySelectorAll('[data-cc-open]');
+
+    elements.forEach((el) => {
+      // Avoid binding multiple times
+      if (el.hasAttribute('data-cc-bound')) return;
+
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.triggerElement = el; // Store for focus restoration
+        if (!this.modal) {
+          this._createModal();
+        }
+        this.show();
+      });
+
+      el.setAttribute('data-cc-bound', 'true');
+      this._log(`Auto-bound element: ${el.tagName}`, { text: el.textContent?.trim() });
+    });
+
+    if (elements.length > 0) {
+      this._log(`Bound ${elements.length} element(s) with data-cc-open`);
+    }
+  }
+
+  /**
+   * Expose global API on window object
+   */
+  _exposeGlobalAPI() {
+    const self = this;
+
+    window.CookieConsent = {
+      /**
+       * Show the consent dialog
+       */
+      show: () => {
+        if (!self.modal) {
+          self._createModal();
+        }
+        self.show();
+      },
+
+      /**
+       * Show the settings view directly
+       */
+      showSettings: () => {
+        if (!self.modal) {
+          self._createModal();
+        }
+        self.show();
+        // Small delay to ensure modal is visible before switching views
+        requestAnimationFrame(() => {
+          self.showSettings();
+        });
+      },
+
+      /**
+       * Hide the consent dialog
+       */
+      hide: () => {
+        self.hide();
+      },
+
+      /**
+       * Get current consent object
+       * @returns {Object|null}
+       */
+      getConsent: () => {
+        return self.getConsent();
+      },
+
+      /**
+       * Check if a category is allowed
+       * @param {string} category
+       * @returns {boolean}
+       */
+      isAllowed: (category) => {
+        return self.isAllowed(category);
+      },
+
+      /**
+       * Reset consent and show dialog
+       */
+      resetConsent: () => {
+        self.resetConsent();
+      },
+
+      /**
+       * Get consent status ('all', 'partial', 'essential')
+       * @returns {string}
+       */
+      getStatus: () => {
+        return self._getConsentStatus();
+      }
+    };
+
+    this._log('Global API exposed on window.CookieConsent');
+  }
+
+  /**
    * Show the cookie consent modal
    */
   show() {
@@ -1027,6 +1280,11 @@ class CookieConsent {
 
     this.overlay.classList.add('cc-visible');
     this.modal.classList.add('cc-visible');
+
+    // Hide floating button while modal is open
+    if (this.floatingButton) {
+      this.floatingButton.classList.add('cc-floating-hidden');
+    }
 
     // Focus the first button for accessibility
     requestAnimationFrame(() => {
@@ -1044,6 +1302,11 @@ class CookieConsent {
   hide() {
     this.overlay.classList.remove('cc-visible');
     this.modal.classList.remove('cc-visible');
+
+    // Show floating button again
+    if (this.floatingButton) {
+      this.floatingButton.classList.remove('cc-floating-hidden');
+    }
 
     // Restore body scroll
     document.body.style.overflow = '';
@@ -1153,6 +1416,13 @@ class CookieConsent {
     this._updateDebugBadge();
     this._announce('Cookie preferences saved. All cookies accepted.');
 
+    // Create floating button on first consent, or update existing
+    if (!this.floatingButton) {
+      this._createFloatingButton();
+    } else {
+      this._updateFloatingButton();
+    }
+
     await this._executeCallback(this.onAccept, this.categories);
 
     this._setButtonLoading(button, false);
@@ -1178,6 +1448,13 @@ class CookieConsent {
     this._updateDebugBadge();
     this._announce('Cookie preferences saved. Non-essential cookies rejected.');
 
+    // Create floating button on first consent, or update existing
+    if (!this.floatingButton) {
+      this._createFloatingButton();
+    } else {
+      this._updateFloatingButton();
+    }
+
     await this._executeCallback(this.onReject, this.categories);
 
     this._setButtonLoading(button, false);
@@ -1202,6 +1479,13 @@ class CookieConsent {
     this._evaluateScripts();
     this._updateDebugBadge();
     this._announce('Cookie preferences saved.');
+
+    // Create floating button on first consent, or update existing
+    if (!this.floatingButton) {
+      this._createFloatingButton();
+    } else {
+      this._updateFloatingButton();
+    }
 
     await this._executeCallback(this.onSave, this.categories);
 
