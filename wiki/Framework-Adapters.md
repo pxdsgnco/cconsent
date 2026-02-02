@@ -21,18 +21,9 @@ cconsent provides official adapters for popular JavaScript frameworks. Each adap
 
 ## Installation
 
-All adapters require the core `cconsent` package:
+Framework adapters are available in the `packages/` directory of the repository. Each adapter requires the core cconsent library.
 
-```bash
-# React
-npm install cconsent cconsent-react
-
-# Vue 3
-npm install cconsent cconsent-vue
-
-# Svelte
-npm install cconsent cconsent-svelte
-```
+Download from [GitHub Releases](https://github.com/pxdsgnco/cconsent/releases) or clone the repository to access the adapter packages.
 
 ## Detailed Guides
 

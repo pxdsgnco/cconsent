@@ -12,10 +12,7 @@ Cannot find module 'cconsent' or its corresponding type declarations
 ```
 
 **Solutions:**
-1. Install the package:
-   ```bash
-   npm install cconsent
-   ```
+1. Download the package from [GitHub Releases](https://github.com/pxdsgnco/cconsent/releases)
 
 2. Check your import path:
    ```javascript
@@ -40,17 +37,12 @@ Cannot find module 'cconsent' or its corresponding type declarations
 **Issue:** Modal appears unstyled or invisible.
 
 **Solutions:**
-1. Import the CSS:
-   ```javascript
-   import 'cconsent/style.css';
-   ```
-
-2. Or link it in HTML:
+1. Link the CSS in HTML:
    ```html
-   <link rel="stylesheet" href="https://unpkg.com/cconsent/dist/style.css">
+   <link rel="stylesheet" href="css/cookie-consent.css">
    ```
 
-3. Check for CSS conflicts:
+2. Check for CSS conflicts:
    ```css
    /* Your styles might override cconsent */
    .cc-modal { display: block !important; }

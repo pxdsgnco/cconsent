@@ -4,9 +4,7 @@ The `cconsent-vue` package provides Vue 3-specific integration with plugin archi
 
 ## Installation
 
-```bash
-npm install cconsent cconsent-vue
-```
+Download from [GitHub Releases](https://github.com/pxdsgnco/cconsent/releases) or include from the `packages/cconsent-vue` directory.
 
 ## Setup
 

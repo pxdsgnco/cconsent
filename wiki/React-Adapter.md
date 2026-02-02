@@ -4,9 +4,7 @@ The `cconsent-react` package provides React-specific components and hooks for ma
 
 ## Installation
 
-```bash
-npm install cconsent cconsent-react
-```
+Download from [GitHub Releases](https://github.com/pxdsgnco/cconsent/releases) or include from the `packages/cconsent-react` directory.
 
 ## Setup
 

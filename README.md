@@ -2,8 +2,6 @@
 
 A lightweight, GDPR-compliant cookie consent library with Google Consent Mode v2, geolocation-based consent, and framework adapters for React, Vue, and Svelte.
 
-[![npm version](https://img.shields.io/npm/v/cconsent.svg)](https://www.npmjs.com/package/cconsent)
-[![Bundle Size](https://img.shields.io/bundlephobia/minzip/cconsent)](https://bundlephobia.com/package/cconsent)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 ## ✨ Features
@@ -20,17 +18,15 @@ A lightweight, GDPR-compliant cookie consent library with Google Consent Mode v2
 
 ## 📦 Installation
 
-### NPM
+### Download
 
-```bash
-npm install cconsent
-```
+Download the latest release from [GitHub Releases](https://github.com/pxdsgnco/cconsent/releases).
 
-### CDN
+### Direct Include
 
 ```html
-<link rel="stylesheet" href="https://unpkg.com/cconsent/dist/style.css">
-<script src="https://unpkg.com/cconsent/dist/index.umd.js"></script>
+<link rel="stylesheet" href="css/cookie-consent.css">
+<script src="js/cookie-consent.js"></script>
 ```
 
 ## 🚀 Quick Start
@@ -63,58 +59,7 @@ consent.init();
 
 ## 🧩 Framework Adapters
 
-### React
-
-```bash
-npm install cconsent cconsent-react
-```
-
-```tsx
-import { CookieConsentProvider, useCookieConsent, ConsentGate } from 'cconsent-react';
-import 'cconsent/style.css';
-
-function App() {
-  return (
-    <CookieConsentProvider config={{ policyUrl: '/privacy' }}>
-      <MyApp />
-    </CookieConsentProvider>
-  );
-}
-
-function Analytics() {
-  return (
-    <ConsentGate category="analytics" fallback={<p>Analytics disabled</p>}>
-      <AnalyticsComponent />
-    </ConsentGate>
-  );
-}
-```
-
-### Vue 3
-
-```bash
-npm install cconsent cconsent-vue
-```
-
-```typescript
-import { createCookieConsent } from 'cconsent-vue';
-app.use(createCookieConsent({ policyUrl: '/privacy' }));
-```
-
-### Svelte
-
-```bash
-npm install cconsent cconsent-svelte
-```
-
-```svelte
-<script>
-  import { initCookieConsent, consent } from 'cconsent-svelte';
-  import { onMount } from 'svelte';
-  
-  onMount(() => initCookieConsent({ policyUrl: '/privacy' }));
-</script>
-```
+Framework adapters for React, Vue, and Svelte are available. See the [Framework Adapters](../../wiki/Framework-Adapters) documentation for setup instructions.
 
 ## 📖 Documentation
 

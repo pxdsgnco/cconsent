@@ -4,9 +4,7 @@ The `cconsent-svelte` package provides Svelte-specific integration with stores, 
 
 ## Installation
 
-```bash
-npm install cconsent cconsent-svelte
-```
+Download from [GitHub Releases](https://github.com/pxdsgnco/cconsent/releases) or include from the `packages/cconsent-svelte` directory.
 
 ## Setup
 

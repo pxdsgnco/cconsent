@@ -4,23 +4,21 @@ This guide will help you install cconsent and get a basic cookie consent dialog 
 
 ## Installation
 
-### Option 1: NPM (Recommended)
+### Option 1: Download (Recommended)
+
+Download the latest release from [GitHub Releases](https://github.com/pxdsgnco/cconsent/releases).
+
+### Option 2: Clone Repository
 
 ```bash
-npm install cconsent
+git clone https://github.com/pxdsgnco/cconsent.git
 ```
 
-### Option 2: Yarn
-
-```bash
-yarn add cconsent
-```
-
-### Option 3: CDN
+### Option 3: Direct Include
 
 ```html
-<link rel="stylesheet" href="https://unpkg.com/cconsent/dist/style.css">
-<script src="https://unpkg.com/cconsent/dist/index.umd.js"></script>
+<link rel="stylesheet" href="css/cookie-consent.css">
+<script src="js/cookie-consent.js"></script>
 ```
 
 ## Basic Setup

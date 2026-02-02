@@ -299,11 +299,7 @@ Add Google Consent Mode, geolocation, floating button, etc.
 
 If you need to rollback to v1:
 
-1. Install the previous version:
-   ```bash
-   npm install cconsent@1.x
-   ```
-
+1. Download v1.x from [GitHub Releases](https://github.com/pxdsgnco/cconsent/releases)
 2. Existing v2 consent will be ignored (version mismatch)
 3. Users will be prompted for consent again
 
