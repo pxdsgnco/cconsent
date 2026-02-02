@@ -8,16 +8,21 @@ export default [
     input: 'src/index.ts',
     output: [
       { file: 'dist/index.mjs', format: 'es', sourcemap: true },
-      { file: 'dist/index.cjs', format: 'cjs', sourcemap: true },
+      { file: 'dist/index.cjs', format: 'cjs', sourcemap: true, exports: 'named' },
       {
         file: 'dist/index.umd.js',
         format: 'umd',
         name: 'CookieConsent',
-        sourcemap: true
+        sourcemap: true,
+        exports: 'default'
       }
     ],
     plugins: [
-      typescript({ tsconfig: './tsconfig.json' }),
+      typescript({
+        tsconfig: './tsconfig.json',
+        allowJs: true,
+        checkJs: false
+      }),
       css({ output: 'style.css' }),
       terser()
     ]

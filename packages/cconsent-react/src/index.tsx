@@ -6,44 +6,13 @@ import {
   useCallback,
   type ReactNode
 } from 'react';
-import type {
-  ConsentCategories,
-  ConsentStatus,
-  CookieConsentConfig
+import CookieConsentClass, {
+  type ConsentCategories,
+  type ConsentStatus,
+  type ConsentState,
+  type CookieConsentConfig,
+  type CookieConsentInstance
 } from 'cconsent';
-
-// Extend Window for CookieConsent class
-declare global {
-  interface Window {
-    CookieConsent?: {
-      show: () => void;
-      showSettings: () => void;
-      hide: () => void;
-      getConsent: () => ConsentState | null;
-      isAllowed: (category: string) => boolean;
-      resetConsent: () => void;
-      getStatus: () => ConsentStatus;
-    };
-  }
-  // CookieConsent class constructor
-  const CookieConsent: new (config: CookieConsentConfig) => CookieConsentInstance;
-}
-
-interface ConsentState extends ConsentCategories {
-  timestamp?: string;
-  consentId?: string;
-}
-
-interface CookieConsentInstance {
-  init: () => Promise<void>;
-  show: () => void;
-  hide: () => void;
-  showSettings: () => void;
-  getConsent: () => ConsentState | null;
-  isAllowed: (category: string) => boolean;
-  resetConsent: () => void;
-  _getConsentStatus: () => ConsentStatus;
-}
 
 interface CookieConsentContextValue {
   consent: ConsentCategories | null;
@@ -88,16 +57,8 @@ export function CookieConsentProvider({ children, config }: CookieConsentProvide
     // Only run on client
     if (typeof window === 'undefined') return;
 
-    // Dynamically import CookieConsent class
+    // Initialize CookieConsent
     const initConsent = async () => {
-      // Wait for CookieConsent to be available (from script or import)
-      const CookieConsentClass = (window as unknown as { CookieConsent: new (config: CookieConsentConfig) => CookieConsentInstance }).CookieConsent;
-
-      if (!CookieConsentClass) {
-        console.warn('[cconsent-react] CookieConsent class not found. Make sure cconsent is loaded.');
-        return;
-      }
-
       const cc = new CookieConsentClass({
         ...config,
         onAccept: (categories) => {
