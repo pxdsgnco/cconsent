@@ -355,21 +355,162 @@
 }
 
 /* ============================================
-   Responsive Adjustments
+   Mobile Bottom Sheet Pattern (< 640px)
    ============================================ */
-@media (max-width: 480px) {
+
+/* Drag handle bar for bottom sheet */
+.cc-drag-handle {
+  display: none;
+  width: 100%;
+  padding: 12px 0 8px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.cc-drag-handle:active {
+  cursor: grabbing;
+}
+
+.cc-drag-handle-bar {
+  width: 36px;
+  height: 4px;
+  background-color: var(--cc-border-default);
+  border-radius: 2px;
+  margin: 0 auto;
+  transition: background-color var(--cc-animation-duration) var(--cc-animation-easing);
+}
+
+.cc-drag-handle:hover .cc-drag-handle-bar {
+  background-color: var(--cc-text-muted);
+}
+
+/* Bottom sheet content wrapper */
+.cc-bottom-sheet-content {
+  display: contents;
+}
+
+@media (max-width: 639px) {
+  /* Bottom sheet modal styling */
   .cc-modal {
     bottom: 0;
     right: 0;
     left: 0;
+    top: auto;
     width: 100%;
     max-width: 100%;
-    border-radius: var(--cc-modal-radius) var(--cc-modal-radius) 0 0;
-    padding: 24px;
+    max-height: calc(100vh - 40px);
+    max-height: calc(100dvh - 40px); /* Dynamic viewport for mobile browsers */
+    border-radius: 16px 16px 0 0;
+    padding: 0 20px 20px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    transform: translateY(100%);
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .cc-modal.cc-visible {
+    transform: translateY(0);
+  }
+
+  /* Show drag handle on mobile */
+  .cc-drag-handle {
+    display: block;
+    position: sticky;
+    top: 0;
+    background-color: var(--cc-surface-primary);
+    z-index: 1;
+    margin: 0 -20px;
+    padding: 12px 20px 8px;
+  }
+
+  /* Viewport lock - prevent background scroll */
+  body.cc-modal-open {
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Touch-optimized targets (minimum 44px per iOS HIG) */
+  .cc-btn {
+    min-height: 48px;
+    padding: 14px 20px;
+    font-size: 16px; /* Prevent iOS zoom on focus */
+  }
+
+  .cc-toggle-slider {
+    width: 44px;
+    height: 26px;
+  }
+
+  .cc-toggle-slider::before {
+    width: 20px;
+    height: 20px;
+    top: 3px;
+    left: 3px;
+  }
+
+  .cc-toggle-input:checked + .cc-toggle-slider::before {
+    transform: translateX(18px);
+  }
+
+  .cc-category {
+    padding: 16px;
+    min-height: 72px;
+  }
+
+  /* Larger touch target for category cards */
+  .cc-toggle {
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
   }
 
   .cc-buttons-row {
     flex-direction: column;
+    gap: 12px;
+  }
+
+  .cc-heading {
+    font-size: 22px;
+    padding-top: 4px;
+  }
+
+  .cc-description {
+    font-size: 15px;
+    line-height: 22px;
+  }
+
+  /* Snap points indicator */
+  .cc-modal.cc-snap-partial {
+    max-height: 50vh;
+    max-height: 50dvh;
+  }
+
+  .cc-modal.cc-snap-expanded {
+    max-height: calc(100vh - 40px);
+    max-height: calc(100dvh - 40px);
+  }
+
+  /* Dragging state */
+  .cc-modal.cc-dragging {
+    transition: none !important;
+  }
+}
+
+/* Safe area insets for notched devices */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  @media (max-width: 639px) {
+    .cc-modal {
+      padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    }
+
+    .cc-floating-btn.cc-floating-bottom-right,
+    .cc-floating-btn.cc-floating-bottom-left {
+      bottom: calc(var(--cc-floating-offset-y, 20px) + env(safe-area-inset-bottom));
+    }
   }
 }
 

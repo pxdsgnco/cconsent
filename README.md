@@ -407,6 +407,51 @@ The component supports Windows High Contrast Mode and other forced-colors enviro
 
 Animations are disabled when `prefers-reduced-motion: reduce` is set in the user's system preferences.
 
+## Mobile Behavior
+
+On devices with viewport width < 640px, the dialog transforms into a mobile-optimized bottom sheet pattern.
+
+### Bottom Sheet Features
+
+| Feature | Description |
+|---------|-------------|
+| **Slide-up animation** | Modal slides up from the bottom of the screen |
+| **Rounded corners** | Top corners rounded (16px) for native feel |
+| **Drag handle** | Visual indicator at top showing swipe capability |
+| **Swipe to dismiss** | Drag down to dismiss (rejects non-essential cookies) |
+| **Viewport lock** | Background scrolling disabled while modal is open |
+| **Safe areas** | Respects `env(safe-area-inset-bottom)` for notched devices |
+
+### Touch Target Compliance
+
+Touch targets meet accessibility guidelines for mobile devices:
+
+| Element | Size | Standard |
+|---------|------|----------|
+| Buttons | 48px min-height | Material Design (48dp) |
+| Toggle switches | 44px × 26px | iOS HIG (44pt) |
+| Category cards | 72px min-height | iOS HIG |
+
+### Swipe Gesture
+
+The drag handle at the top of the bottom sheet enables swipe-to-dismiss:
+
+- **Fast swipe down** (velocity > 0.5 px/ms): Dismisses and rejects cookies
+- **Slow drag > 100px**: Dismisses and rejects cookies
+- **Slow drag < 100px**: Modal snaps back to original position
+
+This ensures GDPR compliance by treating swipe dismiss as rejecting non-essential cookies (conservative approach).
+
+### Safe Area Support
+
+For devices with notches or home indicators (iPhone X+), the modal automatically adds extra bottom padding:
+
+```css
+padding-bottom: calc(20px + env(safe-area-inset-bottom));
+```
+
+The floating button also respects safe areas on mobile.
+
 ## Browser Support
 
 Works in all modern browsers (Chrome, Firefox, Safari, Edge).

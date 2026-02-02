@@ -88,6 +88,17 @@ class CookieConsent {
     // Focus management
     this.triggerElement = null;
     this.liveRegion = null;
+
+    // Mobile touch state for swipe gestures
+    this.touchState = {
+      startY: 0,
+      currentY: 0,
+      startTime: 0,
+      isDragging: false,
+      modalStartTransform: 0
+    };
+    this.dragHandle = null;
+    this.scrollPositionBeforeLock = 0;
   }
 
   /**
@@ -507,6 +518,170 @@ class CookieConsent {
   }
 
   /**
+   * Check if the current viewport is mobile (< 640px)
+   * @returns {boolean}
+   */
+  _isMobile() {
+    return window.innerWidth < 640;
+  }
+
+  /**
+   * Create the drag handle element for mobile bottom sheet
+   * @returns {HTMLElement}
+   */
+  _createDragHandle() {
+    const handle = this._createElement('div', { className: 'cc-drag-handle' });
+    handle.setAttribute('aria-hidden', 'true');
+
+    const bar = this._createElement('div', { className: 'cc-drag-handle-bar' });
+    handle.appendChild(bar);
+
+    return handle;
+  }
+
+  /**
+   * Handle touch start on drag handle
+   * @param {TouchEvent} e
+   */
+  _handleTouchStart(e) {
+    if (!this._isMobile()) return;
+
+    const touch = e.touches[0];
+    this.touchState.startY = touch.clientY;
+    this.touchState.currentY = touch.clientY;
+    this.touchState.startTime = Date.now();
+    this.touchState.isDragging = true;
+    this.touchState.modalStartTransform = 0;
+
+    // Add dragging class to disable transitions during drag
+    this.modal.classList.add('cc-dragging');
+
+    this._log('Touch start', { y: touch.clientY });
+  }
+
+  /**
+   * Handle touch move on drag handle
+   * @param {TouchEvent} e
+   */
+  _handleTouchMove(e) {
+    if (!this.touchState.isDragging || !this._isMobile()) return;
+
+    const touch = e.touches[0];
+    this.touchState.currentY = touch.clientY;
+
+    // Calculate how far we've dragged (only allow dragging down)
+    const deltaY = Math.max(0, touch.clientY - this.touchState.startY);
+
+    // Apply transform to modal
+    this.modal.style.transform = `translateY(${deltaY}px)`;
+
+    // Prevent scrolling while dragging
+    e.preventDefault();
+  }
+
+  /**
+   * Handle touch end on drag handle
+   * @param {TouchEvent} e
+   */
+  _handleTouchEnd(e) {
+    if (!this.touchState.isDragging || !this._isMobile()) return;
+
+    const endTime = Date.now();
+    const deltaY = this.touchState.currentY - this.touchState.startY;
+    const deltaTime = endTime - this.touchState.startTime;
+
+    // Calculate velocity (px/ms)
+    const velocity = deltaY / deltaTime;
+
+    // Thresholds for dismiss
+    const velocityThreshold = 0.5; // px/ms
+    const distanceThreshold = 100; // px
+
+    this._log('Touch end', { deltaY, velocity, deltaTime });
+
+    // Remove dragging class to re-enable transitions
+    this.modal.classList.remove('cc-dragging');
+
+    // Reset transform first
+    this.modal.style.transform = '';
+
+    // Determine if we should dismiss
+    if (velocity > velocityThreshold || deltaY > distanceThreshold) {
+      // Swipe down dismissed - reject non-essential (GDPR compliant)
+      this._log('Swipe dismissed modal', null, 'warn');
+      this.rejectAll();
+    }
+    // Otherwise modal snaps back (handled by CSS transition)
+
+    // Reset touch state
+    this.touchState.isDragging = false;
+    this.touchState.startY = 0;
+    this.touchState.currentY = 0;
+    this.touchState.startTime = 0;
+  }
+
+  /**
+   * Bind touch events to the drag handle
+   */
+  _bindTouchEvents() {
+    if (!this.dragHandle) return;
+
+    // Touch events on drag handle
+    this.dragHandle.addEventListener('touchstart', (e) => this._handleTouchStart(e), { passive: true });
+    this.dragHandle.addEventListener('touchmove', (e) => this._handleTouchMove(e), { passive: false });
+    this.dragHandle.addEventListener('touchend', (e) => this._handleTouchEnd(e), { passive: true });
+
+    // Also handle touchcancel
+    this.dragHandle.addEventListener('touchcancel', () => {
+      if (this.touchState.isDragging) {
+        this.modal.classList.remove('cc-dragging');
+        this.modal.style.transform = '';
+        this.touchState.isDragging = false;
+      }
+    }, { passive: true });
+
+    // Handle resize to re-check mobile state
+    window.addEventListener('resize', () => {
+      // If we were dragging and resized to desktop, reset state
+      if (!this._isMobile() && this.touchState.isDragging) {
+        this.modal.classList.remove('cc-dragging');
+        this.modal.style.transform = '';
+        this.touchState.isDragging = false;
+      }
+    });
+
+    this._log('Touch events bound to drag handle');
+  }
+
+  /**
+   * Lock viewport to prevent background scrolling
+   */
+  _lockViewport() {
+    // Store scroll position before locking
+    this.scrollPositionBeforeLock = window.scrollY;
+
+    // Add class for CSS-based lock
+    document.body.classList.add('cc-modal-open');
+
+    // Set body position to preserve scroll position
+    document.body.style.top = `-${this.scrollPositionBeforeLock}px`;
+  }
+
+  /**
+   * Unlock viewport and restore scroll position
+   */
+  _unlockViewport() {
+    // Remove class
+    document.body.classList.remove('cc-modal-open');
+
+    // Clear inline styles
+    document.body.style.top = '';
+
+    // Restore scroll position
+    window.scrollTo(0, this.scrollPositionBeforeLock);
+  }
+
+  /**
    * Helper to create an element with attributes and children
    */
   _createElement(tag, attrs = {}, children = []) {
@@ -742,6 +917,10 @@ class CookieConsent {
     this.modal.setAttribute('aria-modal', 'true');
     this.modal.setAttribute('aria-labelledby', 'cc-heading');
 
+    // Create drag handle for mobile bottom sheet
+    this.dragHandle = this._createDragHandle();
+    this.modal.appendChild(this.dragHandle);
+
     // Create views
     this.initialView = this._createInitialView();
     this.settingsView = this._createSettingsView();
@@ -763,6 +942,9 @@ class CookieConsent {
 
     // Bind events
     this._bindEvents();
+
+    // Bind touch events for mobile swipe gestures
+    this._bindTouchEvents();
   }
 
   /**
@@ -1292,8 +1474,13 @@ class CookieConsent {
       if (firstButton) firstButton.focus();
     });
 
-    // Prevent body scroll
-    document.body.style.overflow = 'hidden';
+    // Lock viewport (enhanced for mobile)
+    if (this._isMobile()) {
+      this._lockViewport();
+    } else {
+      // Simpler lock for desktop
+      document.body.style.overflow = 'hidden';
+    }
   }
 
   /**
@@ -1308,8 +1495,13 @@ class CookieConsent {
       this.floatingButton.classList.remove('cc-floating-hidden');
     }
 
-    // Restore body scroll
-    document.body.style.overflow = '';
+    // Unlock viewport (enhanced for mobile)
+    if (this._isMobile()) {
+      this._unlockViewport();
+    } else {
+      // Simpler unlock for desktop
+      document.body.style.overflow = '';
+    }
 
     // Restore focus to the element that triggered the modal
     if (this.triggerElement && typeof this.triggerElement.focus === 'function') {
